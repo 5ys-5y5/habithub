@@ -385,7 +385,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
             {/* Heatmap Section */}
             {activeSharedData.length > 0 && (
               <section className="w-full">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-bold flex items-center gap-2">
                     <Activity size={20} className="text-github-muted"/>
                     활동 대시보드
@@ -397,7 +397,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
                   {activeSharedData.map(({ myRecord, peerRecords }) => (
                     <div 
                       key={myRecord.habit_id} 
-                      className="w-full bg-github-card border border-github-border rounded-lg pl-4 py-4 pr-0 relative group"
+                      className="w-full bg-github-card border border-github-border rounded-lg pl-6 py-4 pr-0 relative group"
                       onClick={() => handleTutorial("대시보드 히트맵", "지난 1년 동안의 활동 기록을 잔디 심기처럼 시각화하여 보여줘요.")}
                     >
                       {/* Together Badge (Absolute to card) */}
@@ -542,11 +542,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
                 </div>
               )}
               
-              {!user && (
-                <div className="mt-4 text-center text-sm text-github-muted bg-github-card/50 p-4 rounded border border-github-border border-dashed">
-                  로그인하면 이 모든 기능을 무료로 사용할 수 있습니다.
-                </div>
-              )}
+
             </section>
           </div>
          </main>
