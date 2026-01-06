@@ -113,7 +113,7 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
             <div className="space-y-3">
               <label className="block text-sm font-semibold text-github-text">어떤 습관인가요?</label>
               
-              {/* Mode Toggle - Disabled in Edit Mode to prevent complexity */}
+              {/* Mode Toggle */}
               <div className="flex gap-2 mb-2 p-1 bg-github-card border border-github-border rounded-lg">
                 <button
                   type="button"
@@ -143,13 +143,19 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
                   required
                 />
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-1">
+              
+              {/* 색상 선택 영역 개선: 균등 배치 및 잘림 방지 */}
+              <div className="flex justify-between items-center py-2 px-1">
                 {COLORS.map(color => (
                   <button
                     key={color}
                     type="button"
                     onClick={() => updateForm('color', color)}
-                    className={`w-6 h-6 rounded-full flex-shrink-0 ${color} ${formData.color === color ? 'ring-2 ring-white ring-offset-2 ring-offset-github-bg' : 'opacity-60 hover:opacity-100'}`}
+                    className={`w-8 h-8 rounded-full flex-shrink-0 transition-all ${color} ${
+                      formData.color === color 
+                        ? 'ring-2 ring-white ring-offset-2 ring-offset-github-bg scale-110 z-10' 
+                        : 'opacity-70 hover:opacity-100 hover:scale-105'
+                    }`}
                   />
                 ))}
               </div>
