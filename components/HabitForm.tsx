@@ -314,13 +314,13 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-github-border bg-github-card flex justify-end">
+        <div className="p-4 border-t border-github-border bg-github-card flex">
           <button 
             form="habit-form"
             type="submit"
-            className="px-6 py-2.5 rounded-lg bg-github-success text-white font-bold hover:bg-github-successHover flex items-center gap-2 transition-colors shadow-sm"
+            className="w-full px-6 py-2.5 rounded-lg bg-github-success text-white font-bold hover:bg-github-successHover flex items-center justify-center transition-colors shadow-sm"
           >
-            <CheckCircle2 size={18}/> {isEdit ? '수정 저장' : '습관 생성'}
+            {isEdit ? '수정 저장' : '습관 생성'}
           </button>
         </div>
       </div>
