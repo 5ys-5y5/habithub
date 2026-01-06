@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { HabitRecord } from '../types';
 
@@ -11,27 +12,28 @@ const Heatmap: React.FC<HeatmapProps> = ({ myRecord, peerRecords = [], rangeDays
   const { habit, logs: myLogs } = myRecord;
   const isTogether = habit.mode === 'together';
 
-  // --- Configuration ---
   const CELL_SIZE = 10;   // px
   const GAP = 3;          // px
-  const HEADER_HEIGHT = 14; // px (Height of W1, W5 text row)
-  const HEADER_MB = 4;    // px (Margin bottom of header row)
+  const HEADER_HEIGHT = 14; 
+  const HEADER_MB = 4;    
   
-  // --- Data Logic ---
   const { weeks, weekLabels } = useMemo(() => {
-    const creationDate = habit.createdAt ? new Date(habit.createdAt) : new Date();
-    const startDate = new Date(creationDate);
-    startDate.setHours(0, 0, 0, 0);
-    // Align to Sunday
+    const logDates = Object.keys(myLogs).map(d => new Date(d).getTime());
+    const creationTime = habit.createdAt ? new Date(habit.createdAt).getTime() : Date.now();
+    
+    // actualMinDate should be the start of the day (00:00:00)
+    const minTimestamp = Math.min(creationTime, ...logDates);
+    const actualMinDate = new Date(minTimestamp);
+    actualMinDate.setHours(0, 0, 0, 0);
+
+    const startDate = new Date(actualMinDate);
     const dayOfStart = startDate.getDay();
     startDate.setDate(startDate.getDate() - dayOfStart);
 
     const weeksArr = [];
-    // 히트맵 격자는 1년 전체를 보여주기 위해 53주로 설정
     const totalWeeks = 53; 
     const cursor = new Date(startDate);
-    const compareCreation = new Date(creationDate);
-    compareCreation.setHours(0,0,0,0);
+    cursor.setHours(0, 0, 0, 0);
 
     for (let w = 0; w < totalWeeks; w++) {
       const currentWeek = [];
@@ -42,11 +44,13 @@ const Heatmap: React.FC<HeatmapProps> = ({ myRecord, peerRecords = [], rangeDays
         const dateStr = `${year}-${month}-${day}`;
         
         const myStatus = myLogs[dateStr];
-        const isBeforeCreation = cursor < compareCreation;
+        
+        // Hide if before the actual creation or first log day
+        const isVisible = cursor.getTime() >= actualMinDate.getTime();
 
         let displayStatus: string = 'empty';
 
-        if (!isBeforeCreation) {
+        if (isVisible) {
           if (myStatus === false) {
              displayStatus = 'solid-red';
           } else if (myStatus === true) {
@@ -73,7 +77,7 @@ const Heatmap: React.FC<HeatmapProps> = ({ myRecord, peerRecords = [], rangeDays
         currentWeek.push({
           date: dateStr,
           status: displayStatus,
-          isVisible: !isBeforeCreation
+          isVisible: isVisible
         });
         
         cursor.setDate(cursor.getDate() + 1);
@@ -83,7 +87,6 @@ const Heatmap: React.FC<HeatmapProps> = ({ myRecord, peerRecords = [], rangeDays
 
     const wLabels = weeksArr.map((_, index) => {
       const weekNum = index + 1;
-      // 4주 간격으로 라벨 표시하되, 사용자의 요청대로 W49까지만 출력 (W53 등 제외)
       if ((index === 0 || index % 4 === 0) && weekNum <= 49) {
         return { text: `W${weekNum}`, visible: true };
       }
@@ -108,52 +111,25 @@ const Heatmap: React.FC<HeatmapProps> = ({ myRecord, peerRecords = [], rangeDays
 
   return (
     <div className="flex">
-      
-      {/* 1. Y-Axis Column (Fixed) */}
       <div className="flex flex-col flex-shrink-0" style={{ marginRight: GAP }}>
-        {/* Spacer for Header Alignment */}
         <div style={{ height: HEADER_HEIGHT, marginBottom: HEADER_MB }} />
-        
-        {/* Days Labels */}
         {DAYS_EN.map((day, i) => (
-           <div 
-             key={i} 
-             className="text-[9px] text-github-muted font-mono flex items-center justify-end leading-none"
-             style={{ height: CELL_SIZE, marginBottom: GAP }}
-           >
-              {day}
-           </div>
+           <div key={i} className="text-[9px] text-github-muted font-mono flex items-center justify-end leading-none" style={{ height: CELL_SIZE, marginBottom: GAP }}>{day}</div>
         ))}
       </div>
 
-      {/* 2. X-Axis & Grid (Scrollable) */}
       <div className="overflow-x-auto custom-scrollbar">
          <div className="flex flex-col w-fit">
-            
-            {/* Row 1: X-Axis Labels (W1 ~ W49 까지만 표시) */}
             <div className="flex" style={{ height: HEADER_HEIGHT, marginBottom: HEADER_MB }}>
                {weekLabels.map((label, i) => (
-                  <div 
-                    key={i} 
-                    className="text-[10px] text-github-muted text-left overflow-visible whitespace-nowrap leading-none"
-                    style={{ width: CELL_SIZE, marginRight: GAP }}
-                  >
-                     {label.visible ? label.text : ''}
-                  </div>
+                  <div key={i} className="text-[10px] text-github-muted text-left overflow-visible whitespace-nowrap leading-none" style={{ width: CELL_SIZE, marginRight: GAP }}>{label.visible ? label.text : ''}</div>
                ))}
             </div>
-
-            {/* Row 2: The Grid (53 Weeks 전체 유지) */}
             <div className="flex">
                {weeks.map((week, wIndex) => (
                   <div key={wIndex} className="flex flex-col" style={{ marginRight: GAP }}>
                      {week.map((day) => (
-                        <div
-                           key={day.date}
-                           className={`rounded-[2px] transition-all ${getCellClass(day.status, day.isVisible)}`}
-                           title={`${day.date}`}
-                           style={{ width: CELL_SIZE, height: CELL_SIZE, marginBottom: GAP }}
-                        />
+                        <div key={day.date} className={`rounded-[2px] transition-all ${getCellClass(day.status, day.isVisible)}`} title={`${day.date}`} style={{ width: CELL_SIZE, height: CELL_SIZE, marginBottom: GAP }} />
                      ))}
                   </div>
                ))}
