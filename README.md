@@ -24,6 +24,6 @@ View your app in AI Studio: https://ai.studio/apps/drive/1xCM-cgbGsAL84kYoqrbgW-
 You can deploy as a static site using the included `render.yaml` blueprint:
 
 1. Commit your code and push it to a Git repository that Render can access.
-2. In Render, choose **Blueprint** and point it to this repository.
+2. In Render, choose **Blueprint** and point it to this repository. The blueprint creates a **Static Site** service (`type: static` in `render.yaml`), so you do **not** need to select a Node environment manually.
 3. Render will run `npm install && npm run build` and publish the contents of `dist/`.
 4. Add an environment variable `GEMINI_API_KEY` in Render so the build can embed your key.
