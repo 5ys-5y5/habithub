@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { User, Habit, HabitRecord, SharedHabitData } from '../types';
 import { fetchHabitRecords, saveHabitLog, createHabit, respondToInvite, deleteHabit } from '../services/sheetService';
 import Heatmap from './Heatmap';
 import HabitForm from './HabitForm';
 import FriendSidebar from './FriendSidebar';
-import { Plus, X as XIcon, Minus, LogOut, Loader2, LogIn, ChevronLeft, ChevronRight, Activity, Users, BellRing, Check, Ban, Mail, Pencil, Trash2, CalendarDays, Info, X } from 'lucide-react';
+import { Plus, X as XIcon, LogOut, Loader2, LogIn, ChevronLeft, ChevronRight, Activity, Users, User as UserIcon, BellRing, Pencil, Trash2, Info, X, Target, AlertTriangle } from 'lucide-react';
 
 interface DashboardProps {
   user: User | null;
@@ -13,9 +13,9 @@ interface DashboardProps {
 }
 
 const SAMPLE_HABITS: Habit[] = [
-  { id: 's1', userEmail: 'guest', name: '물 마시기', color: 'bg-blue-500', type: 'do', goal: 2, unit: 'L', frequency: { type: 'daily' }, createdAt: new Date(Date.now() - 365*24*60*60*1000).toISOString() },
-  { id: 's2', userEmail: 'guest', name: '러닝', color: 'bg-green-500', type: 'do', goal: 30, unit: '분', frequency: { type: 'weekly_count', value: 3 }, createdAt: new Date(Date.now() - 180*24*60*60*1000).toISOString() },
-  { id: 's3', userEmail: 'guest', name: '야식 안먹기', color: 'bg-red-500', type: 'dont', goal: 0, unit: '회', frequency: { type: 'daily' }, createdAt: new Date(Date.now() - 60*24*60*60*1000).toISOString() },
+  { id: 's1', userEmail: 'guest', creatorEmail: 'guest', name: '물 마시기', color: 'bg-blue-500', type: 'do', goal: 2, unit: 'L', frequency: { type: 'daily' }, createdAt: new Date(Date.now() - 365*24*60*60*1000).toISOString(), mode: 'personal' },
+  { id: 's2', userEmail: 'guest', creatorEmail: 'guest', name: '러닝', color: 'bg-green-500', type: 'do', goal: 30, unit: '분', frequency: { type: 'weekly_count', value: 3 }, createdAt: new Date(Date.now() - 180*24*60*60*1000).toISOString(), mode: 'together' },
+  { id: 's3', userEmail: 'guest', creatorEmail: 'guest', name: '야식 안먹기', color: 'bg-red-500', type: 'dont', goal: 0, unit: '회', frequency: { type: 'daily' }, createdAt: new Date(Date.now() - 60*24*60*60*1000).toISOString(), mode: 'personal' },
 ];
 
 const generateSampleLogs = (habit: Habit) => {
@@ -51,52 +51,49 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
   const [tutorialMessage, setTutorialMessage] = useState<{ title: string; desc: string } | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   
-  // 커스텀 달력 상태 (UI 노출용이 아닌 로직 해결용)
+  // 커스텀 확인 모달 상태
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [pickerViewDate, setPickerViewDate] = useState(new Date());
 
   const formattedDate = useMemo(() => getLocalISOString(selectedDate), [selectedDate]);
   const displayDate = useMemo(() => selectedDate.toLocaleDateString('ko-KR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), [selectedDate]);
 
-  // XPath 추적 및 클릭 디버깅 로그
+  // [DEBUG] 글로벌 클릭 추적
   useEffect(() => {
-    const getXPath = (element: HTMLElement | null): string => {
-      if (!element || element.nodeType !== 1) return "";
-      if (element.id) return `//*[@id="${element.id}"]`;
-      let sames = Array.from(element.parentNode?.childNodes || []).filter(x => x.nodeName === element.nodeName);
-      let index = sames.indexOf(element) + 1;
-      return getXPath(element.parentNode as HTMLElement) + '/' + element.nodeName.toLowerCase() + (sames.length > 1 ? `[${index}]` : "");
-    };
-
-    const handleGlobalClick = (e: MouseEvent) => {
+    const handleGlobalClickTrace = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      console.log(`[TRACE][CLICK] Tag: <${target.tagName}>, Class: "${target.className}", ID: "${target.id}"`);
-      console.log(`[TRACE][XPATH] ${getXPath(target)}`);
+      console.log(`[CLICK_TRACE] Tag: ${target.tagName}, Class: ${target.className}`);
     };
-    window.addEventListener('click', handleGlobalClick);
-    return () => window.removeEventListener('click', handleGlobalClick);
+    window.addEventListener('click', handleGlobalClickTrace, true);
+    return () => window.removeEventListener('click', handleGlobalClickTrace, true);
   }, []);
 
   const loadData = async (showLoading = true) => {
+    console.log("[DATA_FLOW] Loading data for user:", user?.email);
     if (!user) {
       setSharedData(SAMPLE_DATA);
       return;
     }
     if (showLoading) setLoading(true);
-    const data = await fetchHabitRecords(user.email);
-    setSharedData(data);
-    setLoading(false);
+    try {
+      const data = await fetchHabitRecords(user.email);
+      console.log("[DATA_FLOW] Success. Count:", data.length);
+      setSharedData(data);
+    } catch (err) {
+      console.error("[DATA_FLOW] Failed:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { loadData(); }, [user]);
-
-  const handleTutorial = (title: string, desc: string) => {
-    if (!user) { 
-      setTutorialMessage({ title, desc }); 
-      return true; 
-    }
-    return false;
-  };
 
   const shiftDate = (days: number) => {
     const newDate = new Date(selectedDate);
@@ -104,26 +101,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
     setSelectedDate(newDate);
   };
 
-  // 날짜 클릭 시 트리거 (XPath: //*[@id="root"]/div/div/main/div/section[2]/div[1]/div/div)
   const triggerDatePicker = (e: React.MouseEvent) => {
-    console.log("[TRACE][STEP 1] Date Area Clicked - Logic Triggered");
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (handleTutorial("날짜 이동", "캘린더를 통해 과거의 기록을 확인하거나 특정 날짜의 목표를 미리 볼 수 있어요.")) {
-      console.log("[TRACE][ABORT] Guest user - tutorial shown");
+    e.preventDefault(); e.stopPropagation();
+    if (!user) { 
+      setTutorialMessage({ title: "날짜 이동", desc: "캘린더를 통해 과거의 기록을 확인하거나 특정 날짜의 목표를 미리 볼 수 있어요." }); 
       return;
     }
-
-    console.log("[TRACE][STEP 2] showPicker blocked by iframe. Opening custom modal fallback.");
     setPickerViewDate(new Date(selectedDate));
     setIsDatePickerOpen(true);
   };
 
   const selectDate = (year: number, month: number, day: number) => {
-    const newDate = new Date(year, month, day);
-    console.log(`[TRACE][STEP 3] Date Selected: ${year}-${month+1}-${day}`);
-    setSelectedDate(newDate);
+    setSelectedDate(new Date(year, month, day));
     setIsDatePickerOpen(false);
   };
 
@@ -141,6 +130,26 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
     return daysArr;
   }, [pickerViewDate]);
 
+  const calculateWeeklyRate = (record: HabitRecord) => {
+    const today = new Date();
+    let count = 0; let expected = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(); d.setDate(today.getDate() - i);
+      const dateStr = getLocalISOString(d);
+      const dayOfWeek = d.getDay();
+      const { frequency } = record.habit;
+      let isExpected = false;
+      if (frequency.type === 'daily') isExpected = true;
+      else if (frequency.type === 'specific_days') isExpected = frequency.days?.includes(dayOfWeek) || false;
+      else if (frequency.type === 'weekly_count') isExpected = true;
+      if (isExpected) {
+        expected++;
+        if (record.logs[dateStr] === true) count++;
+      }
+    }
+    return expected > 0 ? Math.round((count / expected) * 100) : 0;
+  };
+
   const handleToggleLog = async (record: HabitRecord) => {
     const currentStatus = record.logs[formattedDate];
     let newStatus = currentStatus === undefined ? true : (currentStatus === true ? false : undefined);
@@ -149,6 +158,43 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
     else newLogs[formattedDate] = newStatus;
     setSharedData(prev => prev.map(item => item.myRecord.habit_id === record.habit_id ? { ...item, myRecord: { ...item.myRecord, logs: newLogs } } : item));
     if (user) await saveHabitLog(user.email, record.habit_id, record.habit, newLogs);
+  };
+
+  const handleDeleteHabitClick = (e: React.MouseEvent, record: HabitRecord) => {
+    console.log("[DELETE_FLOW] Button clicked. Record:", record.habit.name);
+    e.preventDefault(); e.stopPropagation();
+    
+    if (!user) {
+      setTutorialMessage({ title: "습관 삭제", desc: "로그인하면 기록된 습관을 영구적으로 삭제하거나 그룹에서 탈퇴할 수 있습니다." });
+      return;
+    }
+
+    const isTogether = record.habit.mode === 'together';
+    setConfirmModal({
+      isOpen: true,
+      title: isTogether ? "그룹 탈퇴" : "습관 삭제",
+      message: isTogether 
+        ? "이 습관 그룹에서 탈퇴하시겠습니까? 다른 멤버들은 활동을 계속 유지합니다." 
+        : "이 습관을 영구적으로 삭제하시겠습니까? 복구할 수 없습니다.",
+      onConfirm: async () => {
+        console.log("[DELETE_FLOW] Custom Modal confirmed. Starting server action.");
+        setConfirmModal(null);
+        setLoading(true);
+        try {
+          const result = await deleteHabit(record);
+          console.log("[DELETE_FLOW] Server Result:", result);
+          if (result.status === 'success') {
+            await loadData(true);
+          } else {
+            alert("처리 중 오류가 발생했습니다: " + result.message);
+            setLoading(false);
+          }
+        } catch (err) {
+          console.error("[DELETE_FLOW] Error:", err);
+          setLoading(false);
+        }
+      }
+    });
   };
 
   const activeSharedData = useMemo(() => sharedData.filter(d => d.myRecord.habit.recordStatus === 'active' || !d.myRecord.habit.recordStatus), [sharedData]);
@@ -195,39 +241,79 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
               <div className="flex items-center justify-between mb-6"><h2 className="text-xl font-bold flex items-center gap-2"><Activity size={20} className="text-github-muted"/>활동 대시보드</h2></div>
               {activeSharedData.length === 0 ? <div className="w-full min-w-[720px] bg-github-card border border-github-border rounded-lg p-10 text-center text-github-muted italic">아직 활성화된 습관 활동이 없습니다.</div> : (
                 <div className="flex flex-col gap-3 w-full max-w-full">
-                  {activeSharedData.map(({ myRecord, peerRecords }) => (
-                    <div key={myRecord.habit_id} className="w-full max-w-full min-w-0 bg-github-card border border-github-border rounded-lg pl-6 pr-6 pt-4 pb-4 relative group">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2"><span className={`w-3 h-3 rounded-full ${myRecord.habit.color}`}></span><span className="font-semibold text-sm truncate">{myRecord.habit.name}</span></div>
-                        <div className="flex gap-1"><button onClick={() => { setEditingHabit(myRecord.habit); setShowHabitForm(true); }} className="p-2 text-github-muted hover:text-github-accent hover:bg-github-btn rounded"><Pencil size={14}/></button><button onClick={() => { if(confirm("삭제하시겠습니까?")) deleteHabit(myRecord).then(() => loadData(false)); }} className="p-1.5 text-github-muted hover:text-red-400 hover:bg-github-btn rounded"><Trash2 size={14}/></button></div>
+                  {activeSharedData.map(({ myRecord, peerRecords }) => {
+                    const weeklyRate = calculateWeeklyRate(myRecord);
+                    const currentUserEmail = user?.email.toLowerCase() || 'guest';
+                    const habitCreator = (myRecord.habit.creatorEmail || myRecord.habit.userEmail || '').toLowerCase();
+                    const isCreator = habitCreator === currentUserEmail;
+
+                    return (
+                      <div key={myRecord.habit_id} className="w-full max-w-full min-w-0 bg-github-card border border-github-border rounded-lg pl-6 pr-6 pt-4 pb-4 relative group">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <span className={`w-3 h-3 rounded-full ${myRecord.habit.color}`}></span>
+                            <div className="flex flex-row gap-4 items-center">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-sm truncate">{myRecord.habit.name}</span>
+                                <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${myRecord.habit.mode === 'together' ? 'bg-github-accent/10 text-github-accent border border-github-accent/20' : 'bg-github-muted/10 text-github-muted border border-github-muted/20'}`}>
+                                  {myRecord.habit.mode === 'together' ? <><Users size={10}/>공유</> : <><UserIcon size={10}/>개인</>}
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-github-muted flex items-center gap-1"><Target size={10} /> 주간 달성률: <span className={weeklyRate >= 80 ? 'text-github-success' : weeklyRate >= 40 ? 'text-github-accent' : 'text-red-400'}>{weeklyRate}%</span></span>
+                            </div>
+                          </div>
+                          <div className="flex gap-1 items-center">
+                            <button 
+                              type="button" 
+                              onClick={(e) => { 
+                                console.log("[EDIT_FLOW] Pencil clicked. Creator Status:", isCreator);
+                                e.stopPropagation(); 
+                                if(!user) {
+                                  setTutorialMessage({ title: "로그인 필요", desc: "로그인하면 습관 설정을 변경할 수 있습니다." });
+                                  return;
+                                }
+                                if(!isCreator) {
+                                  setTutorialMessage({ title: "수정 권한 없음", desc: `이 습관의 원본 생성자(${habitCreator})만 설정을 변경할 수 있습니다.` });
+                                  return;
+                                }
+                                setEditingHabit(myRecord.habit); 
+                                setShowHabitForm(true); 
+                              }} 
+                              className="p-2 text-github-muted hover:text-github-accent hover:bg-github-btn rounded transition-colors" 
+                              title="정보 수정"
+                            >
+                              <Pencil size={14} className="pointer-events-none"/>
+                            </button>
+                            
+                            <button 
+                              type="button" 
+                              onClick={(e) => handleDeleteHabitClick(e, myRecord)} 
+                              className="p-2 text-github-muted hover:text-red-400 hover:bg-github-btn rounded transition-colors" 
+                              title={myRecord.habit.mode === 'together' ? "탈퇴하기" : "삭제하기"}
+                            >
+                              <Trash2 size={14} className="pointer-events-none"/>
+                            </button>
+                          </div>
+                        </div>
+                        <Heatmap myRecord={myRecord} peerRecords={peerRecords} rangeDays={365} />
                       </div>
-                      <Heatmap myRecord={myRecord} peerRecords={peerRecords} rangeDays={365} />
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>
 
             <section className="w-full">
-              {/* [UI 원복] XPath: //*[@id="root"]/div/div/main/div/section[2]/div[1]/div/div 영역 */}
               <div className="flex items-center justify-between mb-9 bg-github-card p-3 rounded-lg border border-github-border">
                 <button onClick={() => shiftDate(-1)} className="p-2 hover:bg-github-btnHover rounded-full transition-colors"><ChevronLeft size={20} /></button>
-                
-                <div 
-                  onClick={triggerDatePicker}
-                  className="text-center relative group p-2 rounded transition-colors flex-1 cursor-pointer select-none"
-                  id="goals-date-header"
-                >
-                  <h2 className="text-lg font-bold pointer-events-none">목표</h2>
-                  <div className="text-sm text-github-muted group-hover:text-github-accent flex items-center justify-center gap-2 pointer-events-none">
-                    {displayDate}
-                  </div>
+                <div onClick={triggerDatePicker} className="text-center relative group p-2 rounded transition-colors flex-1 cursor-pointer select-none">
+                  <h2 className="text-lg font-bold">목표</h2>
+                  <div className="text-sm text-github-muted group-hover:text-github-accent flex items-center justify-center gap-2">{displayDate}</div>
                 </div>
-                
                 <button onClick={() => shiftDate(1)} className="p-2 hover:bg-github-btnHover rounded-full transition-colors"><ChevronRight size={20} /></button>
               </div>
 
-              {loading ? <div className="h-48 flex items-center justify-center text-github-muted"><Loader2 className="animate-spin mr-2" /> 기록을 불러오는 중...</div> : (
+              {loading ? <div className="h-48 flex items-center justify-center text-github-muted"><Loader2 className="animate-spin mr-2" /> 처리 중...</div> : (
                 <div className="space-y-3">
                   {todaysHabits.length === 0 && <div className="text-center py-10 text-github-muted border-2 border-dashed border-github-border rounded-lg">이 날짜에 예정된 습관이 없습니다.</div>}
                   {todaysHabits.map(({ myRecord: record }) => {
@@ -240,7 +326,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
                       </div>
                     );
                   })}
-                  <button onClick={() => { if (!handleTutorial("새 습관", "")) setShowHabitForm(true); }} className="w-full py-4 border-2 border-dashed border-github-border rounded-lg text-github-muted hover:text-github-text hover:border-github-muted hover:bg-github-card/50 transition-all flex items-center justify-center gap-2 font-medium mt-4"><Plus size={18} />새로운 습관 추가하기</button>
+                  <button onClick={() => { if (!user) setTutorialMessage({title:"새 습관", desc:"로그인 후 나만의 새로운 습관을 만들고 친구와 공유할 수 있습니다."}); else { setEditingHabit(undefined); setShowHabitForm(true); } }} className="w-full py-4 border-2 border-dashed border-github-border rounded-lg text-github-muted hover:text-github-text hover:border-github-muted hover:bg-github-card/50 transition-all flex items-center justify-center gap-2 font-medium mt-4"><Plus size={18} />새로운 습관 추가하기</button>
                 </div>
               )}
             </section>
@@ -249,7 +335,22 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
         {user && <FriendSidebar user={user} />}
       </div>
 
-      {/* 달력 선택기 모달 (iframe 보안 에러 우회용) */}
+      {confirmModal?.isOpen && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+           <div className="bg-github-card border border-github-border rounded-xl shadow-2xl p-6 w-full max-w-sm animate-in zoom-in-95">
+              <div className="flex items-center gap-3 text-red-400 mb-4">
+                 <AlertTriangle size={24} />
+                 <h3 className="font-bold text-lg">{confirmModal.title}</h3>
+              </div>
+              <p className="text-sm text-github-text leading-relaxed mb-6 whitespace-pre-wrap">{confirmModal.message}</p>
+              <div className="flex gap-2">
+                 <button onClick={() => { console.log("[DELETE_FLOW] Modal cancel clicked."); setConfirmModal(null); }} className="flex-1 py-2 bg-github-btn border border-github-border rounded-lg text-sm font-bold hover:bg-github-btnHover">취소</button>
+                 <button onClick={confirmModal.onConfirm} className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 shadow-lg active:scale-95 transition-all">확인</button>
+              </div>
+           </div>
+        </div>
+      )}
+
       {isDatePickerOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
           <div className="bg-github-card border border-github-border rounded-xl shadow-2xl p-6 w-full max-w-[320px] animate-in zoom-in-95">
@@ -267,13 +368,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
               {calendarDays.map((d, i) => {
                 const isSelected = selectedDate.getDate() === d.day && selectedDate.getMonth() === d.month && selectedDate.getFullYear() === d.year;
                 return (
-                  <button 
-                    key={i} 
-                    onClick={() => selectDate(d.year, d.month, d.day)}
-                    className={`aspect-square rounded text-xs font-medium flex items-center justify-center transition-all ${!d.isCurrent ? 'text-github-muted/30' : 'text-github-text hover:bg-github-btn'} ${isSelected ? 'bg-github-accent text-white font-bold' : ''}`}
-                  >
-                    {d.day}
-                  </button>
+                  <button key={i} onClick={() => selectDate(d.year, d.month, d.day)} className={`aspect-square rounded text-xs font-medium flex items-center justify-center transition-all ${!d.isCurrent ? 'text-github-muted/30' : 'text-github-text hover:bg-github-btn'} ${isSelected ? 'bg-github-accent text-white font-bold' : ''}`}>{d.day}</button>
                 );
               })}
             </div>
@@ -286,10 +381,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
           userEmail={user.email} 
           onClose={() => setShowHabitForm(false)} 
           onSave={(habit, invitees, logs) => {
-             createHabit(user.email, habit, invitees).then(async (res) => {
-               if(res.status === 'success' && logs) await saveHabitLog(user.email, habit.id || (res as any).data.habit_id, habit, logs);
-               loadData(false);
-             });
+             const isUpdate = !!editingHabit;
+             if (isUpdate) {
+               saveHabitLog(user.email, habit.id, habit, logs || {}).then(() => loadData(false));
+             } else {
+               // [FIXED] createHabit 호출 시 logs를 인자로 넘겨 이중 저장을 방지함
+               createHabit(user.email, habit, invitees, logs || {}).then(() => {
+                 loadData(false);
+               });
+             }
           }}
           initialData={editingHabit} 
           initialLogs={sharedData.find(d => d.myRecord.habit_id === editingHabit?.id)?.myRecord.logs}

@@ -1,4 +1,3 @@
-
 import { User, Habit, HabitRecord, ApiResponse, SharedHabitData, Friend } from '../types';
 
 const USERS_SPREADSHEET_ID = '1iB0mVJjWRgRC1VuaoWKPE43EZVdJuoGaJoo5sQZNeXM';
@@ -145,7 +144,8 @@ export const createUser = async (user: User): Promise<boolean> => {
   return result.status === 'success' || result.status === 'skipped'; 
 };
 
-export const createHabit = async (creatorEmail: string, habit: Habit, invitees: string[]): Promise<ApiResponse<any>> => {
+// [REVISED] 초기 로그(initialLogs)를 한 번에 저장하도록 수정하여 중복 생성을 방지함
+export const createHabit = async (creatorEmail: string, habit: Habit, invitees: string[], initialLogs: { [date: string]: boolean } = {}): Promise<ApiResponse<any>> => {
   invalidateCache();
   const sharedId = habit.mode === 'together' ? (habit.sharedId || crypto.randomUUID()) : undefined;
   const myHabitId = habit.id || `h-${Date.now()}`;
@@ -155,14 +155,17 @@ export const createHabit = async (creatorEmail: string, habit: Habit, invitees: 
     id: myHabitId,
     sharedId,
     userEmail: creatorEmail,
+    creatorEmail: creatorEmail, 
     recordStatus: 'active',
     members: [creatorEmail, ...invitees]
   };
   
-  const myResult = await saveHabitLog(creatorEmail, myHabitId, myHabit, {});
+  // 첫 번째 호출에서 모든 정보(습관 설정 + 로그)를 함께 보냄
+  const myResult = await saveHabitLog(creatorEmail, myHabitId, myHabit, initialLogs);
   if (myResult.status !== 'success') return myResult;
 
   if (habit.mode === 'together' && invitees.length > 0) {
+    // 초대받은 유저들에게도 레코드 생성 (비동기로 진행)
     await Promise.all(invitees.map(inviteeEmail => {
       const inviteeHabitId = `h-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
       const inviteeHabit: Habit = {
@@ -170,6 +173,7 @@ export const createHabit = async (creatorEmail: string, habit: Habit, invitees: 
         id: inviteeHabitId,
         sharedId,
         userEmail: inviteeEmail,
+        creatorEmail: creatorEmail,
         recordStatus: 'invited', 
         members: [creatorEmail, ...invitees]
       };
@@ -182,7 +186,10 @@ export const createHabit = async (creatorEmail: string, habit: Habit, invitees: 
 export const deleteHabit = async (record: HabitRecord): Promise<ApiResponse<any>> => {
   invalidateCache();
   const newStatus = record.habit.mode === 'together' ? 'left' : 'deleted';
-  const updatedHabit = { ...record.habit, recordStatus: newStatus as any };
+  const updatedHabit: Habit = { 
+    ...record.habit, 
+    recordStatus: newStatus as any 
+  };
   return await saveHabitLog(record.email, record.habit_id, updatedHabit, record.logs);
 };
 

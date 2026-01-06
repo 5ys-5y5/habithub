@@ -13,7 +13,8 @@ export interface Frequency {
 export interface Habit {
   id: string; // Unique ID per user's record
   sharedId?: string; // UUID shared across all participants in a "Together" habit
-  userEmail: string;
+  userEmail: string; // The owner of this specific record
+  creatorEmail?: string; // The original creator of the habit (for together mode)
   name: string;
   color: string;
   type: 'do' | 'dont'; 

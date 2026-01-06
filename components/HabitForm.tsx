@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { X, CheckCircle2, Users, User, Plus, Trash2, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Save, RotateCcw, Image as ImageIcon, Upload, Check } from 'lucide-react';
+import { X, CheckCircle2, Users, User, Plus, Trash2, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Save, RotateCcw, Image as ImageIcon, Upload, Check, Mail, UserMinus, Loader2 } from 'lucide-react';
 import { Habit } from '../types';
 
 interface HabitFormProps {
@@ -52,10 +51,12 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
   const isEdit = !!initialData;
   const [mode, setMode] = useState<'personal' | 'together'>('personal');
   const [invitees, setInvitees] = useState<string[]>([]);
+  const [inviteEmail, setInviteEmail] = useState('');
   
   const [isBatchLogOpen, setIsBatchLogOpen] = useState(false);
   const [tempLogs, setTempLogs] = useState<{ [date: string]: boolean }>(initialLogs);
   const [viewDate, setViewDate] = useState(new Date());
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState<Partial<Habit>>({
     name: '',
@@ -81,7 +82,7 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
         setFormData({ ...initialData });
         setMode(initialData.mode || 'personal');
         if (initialData.members) {
-            setInvitees(initialData.members.filter(m => m !== userEmail));
+            setInvitees(initialData.members.filter(m => m.toLowerCase() !== userEmail.toLowerCase()));
         }
         if (initialData.frequency) {
           const fType = initialData.frequency.type;
@@ -101,6 +102,19 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
+  const handleAddInvitee = (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = inviteEmail.trim().toLowerCase();
+    if (email && email !== userEmail.toLowerCase() && !invitees.includes(email)) {
+      setInvitees(prev => [...prev, email]);
+      setInviteEmail('');
+    }
+  };
+
+  const handleRemoveInvitee = (email: string) => {
+    setInvitees(prev => prev.filter(e => e !== email));
+  };
+
   const handleBatchDayToggle = (dayIndex: number) => {
     setBatchSelectedDays(prev => 
       prev.includes(dayIndex) ? prev.filter(d => d !== dayIndex) : [...prev, dayIndex].sort()
@@ -109,8 +123,9 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!formData.name) return;
+    if (!formData.name || isSubmitting) return;
 
+    setIsSubmitting(true);
     const newHabit: Habit = {
       ...(initialData || {}),
       id: initialData?.id || '',
@@ -122,7 +137,8 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
       unit: formData.unit!,
       frequency: formData.frequency!,
       createdAt: initialData?.createdAt || new Date().toISOString(),
-      mode: mode
+      mode: mode,
+      members: mode === 'together' ? [userEmail, ...invitees] : [userEmail]
     };
     
     onSave(newHabit, mode === 'together' ? invitees : [], tempLogs);
@@ -224,7 +240,6 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
   const applyImageBatch = () => {
     if (pendingImageDates.length === 0) return;
 
-    // Remove window.confirm for better reliability and UX
     setTempLogs(prev => {
       const next = { ...prev };
       pendingImageDates.forEach(date => {
@@ -261,9 +276,36 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
               <div className="space-y-3">
                 <label className="block text-sm font-semibold text-github-text">어떤 습관인가요?</label>
                 <div className="flex gap-2 mb-2 p-1 bg-github-card border border-github-border rounded-lg">
-                  <button type="button" disabled={isEdit} onClick={() => setMode('personal')} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-all ${mode === 'personal' ? 'bg-github-btn text-github-text shadow-sm' : 'text-github-muted hover:text-github-text'} ${isEdit ? 'opacity-50 cursor-not-allowed' : ''}`}><User size={16} /> 혼자 하기</button>
-                  <button type="button" disabled={isEdit} onClick={() => setMode('together')} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-all ${mode === 'together' ? 'bg-github-btn text-github-text shadow-sm' : 'text-github-muted hover:text-github-text'} ${isEdit ? 'opacity-50 cursor-not-allowed' : ''}`}><Users size={16} /> 같이 하기</button>
+                  <button type="button" onClick={() => setMode('personal')} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-all ${mode === 'personal' ? 'bg-github-btn text-github-text shadow-sm' : 'text-github-muted hover:text-github-text'}`}><User size={16} /> 혼자 하기</button>
+                  <button type="button" onClick={() => setMode('together')} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-all ${mode === 'together' ? 'bg-github-btn text-github-text shadow-sm' : 'text-github-muted hover:text-github-text'}`}><Users size={16} /> 같이 하기</button>
                 </div>
+
+                {mode === 'together' && (
+                  <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                    <div className="flex gap-2">
+                      <input 
+                        type="email" 
+                        value={inviteEmail} 
+                        onChange={(e) => setInviteEmail(e.target.value)} 
+                        className="flex-1 bg-github-card border border-github-border rounded-lg h-10 px-4 text-sm focus:outline-none focus:border-github-accent placeholder-github-muted" 
+                        placeholder="초대할 친구의 Gmail 이메일"
+                        onKeyPress={(e) => { if(e.key === 'Enter') handleAddInvitee(e); }}
+                      />
+                      <button type="button" onClick={handleAddInvitee} className="px-4 bg-github-btn border border-github-border rounded-lg text-github-text hover:bg-github-btnHover transition-colors"><Plus size={18} /></button>
+                    </div>
+                    {invitees.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {invitees.map(email => (
+                          <div key={email} className="flex items-center gap-1 bg-github-btn border border-github-border px-2 py-1 rounded text-xs text-github-muted">
+                            <Mail size={12} /> {email}
+                            <button type="button" onClick={() => handleRemoveInvitee(email)} className="ml-1 text-github-muted hover:text-red-400"><X size={14}/></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <input type="text" value={formData.name} onChange={(e) => updateForm('name', e.target.value)} className="w-full bg-github-card border border-github-border rounded-lg h-10 px-4 text-github-text focus:outline-none focus:border-github-accent placeholder-github-muted" placeholder="예: 물 마시기" required />
                 <div className="flex justify-between items-center py-2 px-1">
                   {COLORS.map(color => (
@@ -407,14 +449,18 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
                   <RotateCcw size={18} /> 일괄 추가/수정
                 </button>
               )}
-              <button form="habit-form" type="submit" className="flex-1 px-6 py-2.5 rounded-lg bg-github-success text-white font-bold hover:bg-github-successHover flex items-center justify-center transition-colors shadow-sm">{isEdit ? '수정 저장' : '습관 생성'}</button>
+              <button disabled={isSubmitting} form="habit-form" type="submit" className="flex-1 px-6 py-2.5 rounded-lg bg-github-success text-white font-bold hover:bg-github-successHover flex items-center justify-center transition-colors shadow-sm disabled:opacity-50">
+                {isSubmitting ? <Loader2 className="animate-spin w-5 h-5" /> : (isEdit ? '수정 저장' : '습관 생성')}
+              </button>
             </>
           )}
 
           {isBatchLogOpen && (
             <>
               <button type="button" onClick={() => { setIsBatchLogOpen(false); setPendingImageDates([]); }} className="flex-1 px-6 py-2.5 rounded-lg bg-github-btn border border-github-border text-github-text font-bold hover:bg-github-btnHover transition-colors flex items-center justify-center">돌아가기</button>
-              <button type="button" onClick={() => handleSubmit()} className="flex-1 px-6 py-2.5 rounded-lg bg-github-success text-white font-bold hover:bg-github-successHover flex items-center justify-center transition-colors shadow-sm">최종 저장</button>
+              <button disabled={isSubmitting} type="button" onClick={() => handleSubmit()} className="flex-1 px-6 py-2.5 rounded-lg bg-github-success text-white font-bold hover:bg-github-successHover flex items-center justify-center transition-colors shadow-sm disabled:opacity-50">
+                {isSubmitting ? <Loader2 className="animate-spin w-5 h-5" /> : '최종 저장'}
+              </button>
             </>
           )}
         </div>
