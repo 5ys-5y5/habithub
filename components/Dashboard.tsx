@@ -214,7 +214,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
 
       <div className="flex-1 flex w-full overflow-hidden">
          <main className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 custom-scrollbar flex justify-center">
-          <div className="pb-20 inline-flex flex-col gap-8 w-[752px] max-w-full">
+          <div className="pb-20 inline-flex flex-col gap-8 w-fit max-w-full">
             {invitedHabits.length > 0 && (
               <section className="w-full bg-github-card border border-github-accent/30 rounded-lg p-4 animate-in fade-in slide-in-from-top-2">
                  <div className="flex items-center gap-2 mb-3 text-github-accent font-bold"><BellRing size={18} /> 새로운 습관 초대</div>
@@ -234,11 +234,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
               {activeSharedData.length === 0 ? <div className="w-full bg-github-card border border-github-border rounded-lg p-10 text-center text-github-muted italic">아직 활성화된 습관 활동이 없습니다.</div> : (
                 <div className="flex flex-col gap-3 w-full max-w-full">
                   {activeSharedData.map(({ myRecord, peerRecords }) => (
-                    <div key={myRecord.habit_id} className="w-full max-w-full min-w-0 bg-github-card border border-github-border rounded-lg pl-6 py-4 pr-0 relative group">
+                    <div key={myRecord.habit_id} className="w-full max-w-full min-w-0 bg-github-card border border-github-border rounded-lg pl-6 pr-6 pt-4 pb-4 relative group">
                       {myRecord.habit.mode === 'together' && <div className="absolute top-4 right-4 text-xs text-github-muted flex items-center gap-1 bg-github-bg px-2 py-1 rounded-full border border-github-border z-10"><Users size={12} /> 함께 하기</div>}
-                      <div className="flex items-center justify-between mb-3 pr-4">
+                      <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2"><span className={`w-3 h-3 rounded-full ${myRecord.habit.color}`}></span><span className="font-semibold text-sm truncate">{myRecord.habit.name}</span><span className="ml-2 px-2 py-0.5 rounded-full bg-github-btn text-[10px] text-github-muted border border-github-border flex-shrink-0">이번 주 {getWeeklyRate(myRecord)}%</span></div>
-                        <div className="flex gap-1"><button onClick={(e) => { e.stopPropagation(); handleEditClick(myRecord.habit); }} className="p-1.5 text-github-muted hover:text-github-accent hover:bg-github-btn rounded"><Pencil size={14}/></button><button onClick={(e) => { e.stopPropagation(); handleDeleteHabit(myRecord); }} className="p-1.5 text-github-muted hover:text-red-400 hover:bg-github-btn rounded"><Trash2 size={14}/></button></div>
+                        <div className="flex gap-1"><button onClick={(e) => { e.stopPropagation(); handleEditClick(myRecord.habit); }} className="p-2 text-github-muted hover:text-github-accent hover:bg-github-btn rounded"><Pencil size={14}/></button><button onClick={(e) => { e.stopPropagation(); handleDeleteHabit(myRecord); }} className="p-1.5 text-github-muted hover:text-red-400 hover:bg-github-btn rounded"><Trash2 size={14}/></button></div>
                       </div>
                       <Heatmap myRecord={myRecord} peerRecords={peerRecords} rangeDays={365} />
                     </div>

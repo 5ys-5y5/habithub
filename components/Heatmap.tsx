@@ -27,7 +27,8 @@ const Heatmap: React.FC<HeatmapProps> = ({ myRecord, peerRecords = [], rangeDays
     startDate.setDate(startDate.getDate() - dayOfStart);
 
     const weeksArr = [];
-    const totalWeeks = Math.ceil(rangeDays / 7);
+    // 히트맵 격자는 1년 전체를 보여주기 위해 53주로 설정
+    const totalWeeks = 53; 
     const cursor = new Date(startDate);
     const compareCreation = new Date(creationDate);
     compareCreation.setHours(0,0,0,0);
@@ -81,16 +82,16 @@ const Heatmap: React.FC<HeatmapProps> = ({ myRecord, peerRecords = [], rangeDays
     }
 
     const wLabels = weeksArr.map((_, index) => {
-      // Show label every 4 weeks roughly, or use month logic. 
-      // User asked for W1, W5...
-      if (index === 0 || index % 4 === 0) {
-        return { text: `W${index + 1}`, visible: true };
+      const weekNum = index + 1;
+      // 4주 간격으로 라벨 표시하되, 사용자의 요청대로 W49까지만 출력 (W53 등 제외)
+      if ((index === 0 || index % 4 === 0) && weekNum <= 49) {
+        return { text: `W${weekNum}`, visible: true };
       }
       return { text: '', visible: false };
     });
 
     return { weeks: weeksArr, weekLabels: wLabels };
-  }, [habit.createdAt, myLogs, peerRecords, rangeDays, isTogether]);
+  }, [habit.createdAt, myLogs, peerRecords, isTogether]);
 
   const getCellClass = (status: string, isVisible: boolean) => {
     if (!isVisible) return 'bg-transparent';
@@ -106,7 +107,7 @@ const Heatmap: React.FC<HeatmapProps> = ({ myRecord, peerRecords = [], rangeDays
   const DAYS_EN = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
   return (
-    <div className="flex"> {/* Removed w-full to allow shrink to fit */}
+    <div className="flex">
       
       {/* 1. Y-Axis Column (Fixed) */}
       <div className="flex flex-col flex-shrink-0" style={{ marginRight: GAP }}>
@@ -126,14 +127,10 @@ const Heatmap: React.FC<HeatmapProps> = ({ myRecord, peerRecords = [], rangeDays
       </div>
 
       {/* 2. X-Axis & Grid (Scrollable) */}
-      <div className="overflow-x-auto custom-scrollbar"> {/* Removed flex-1 to prevent forced expansion */}
-         {/* 
-            w-fit: Ensures the container sizes exactly to the content.
-            pr-6: Adds right padding for the last label.
-         */}
-         <div className="flex flex-col w-fit pr-6">
+      <div className="overflow-x-auto custom-scrollbar">
+         <div className="flex flex-col w-fit">
             
-            {/* Row 1: X-Axis Labels */}
+            {/* Row 1: X-Axis Labels (W1 ~ W49 까지만 표시) */}
             <div className="flex" style={{ height: HEADER_HEIGHT, marginBottom: HEADER_MB }}>
                {weekLabels.map((label, i) => (
                   <div 
@@ -146,7 +143,7 @@ const Heatmap: React.FC<HeatmapProps> = ({ myRecord, peerRecords = [], rangeDays
                ))}
             </div>
 
-            {/* Row 2: The Grid */}
+            {/* Row 2: The Grid (53 Weeks 전체 유지) */}
             <div className="flex">
                {weeks.map((week, wIndex) => (
                   <div key={wIndex} className="flex flex-col" style={{ marginRight: GAP }}>
