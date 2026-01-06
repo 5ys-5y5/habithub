@@ -344,15 +344,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
          {/* Main Content Area - Scrolls independently */}
          <main className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
           {/* 
-            Changed from "w-full items-center" to "w-fit"
-            - w-fit: The container width is determined by the widest content (the Heatmap card).
-            - No items-center: Defaults to 'stretch', so if Heatmap is wide, other sections stretch to match.
+            수정: w-fit을 w-full로 변경하고 max-w를 적절히 조정하여 
+            내용이 없을 때도 일정한 너비를 유지하게 함. 
           */}
-          <div className="flex flex-col gap-8 w-fit max-w-5xl mx-auto pb-20">
+          <div className="flex flex-col gap-8 w-full max-w-4xl mx-auto pb-20">
             
             {/* Invite Notifications */}
             {invitedHabits.length > 0 && (
-              <div className="w-full bg-github-card border border-github-accent/30 rounded-lg p-4 animate-in fade-in slide-in-from-top-2">
+              <section className="w-full bg-github-card border border-github-accent/30 rounded-lg p-4 animate-in fade-in slide-in-from-top-2">
                  <div className="flex items-center gap-2 mb-3 text-github-accent font-bold">
                     <BellRing size={18} /> 새로운 습관 초대
                  </div>
@@ -379,20 +378,24 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
                      );
                    })}
                  </div>
-              </div>
+              </section>
             )}
 
             {/* Heatmap Section */}
-            {activeSharedData.length > 0 && (
-              <section className="w-full">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold flex items-center gap-2">
-                    <Activity size={20} className="text-github-muted"/>
-                    활동 대시보드
-                  </h2>
-                  {!user && <span className="text-xs bg-github-btn px-2 py-1 rounded border border-github-border text-github-accent">체험 모드</span>}
+            <section className="w-full">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <Activity size={20} className="text-github-muted"/>
+                  활동 대시보드
+                </h2>
+                {!user && <span className="text-xs bg-github-btn px-2 py-1 rounded border border-github-border text-github-accent">체험 모드</span>}
+              </div>
+              
+              {activeSharedData.length === 0 ? (
+                <div className="w-full bg-github-card border border-github-border rounded-lg p-10 text-center text-github-muted italic">
+                  아직 활성화된 습관 활동이 없습니다.
                 </div>
-                {/* Cards Container */}
+              ) : (
                 <div className="flex flex-col gap-6 items-start w-full">
                   {activeSharedData.map(({ myRecord, peerRecords }) => (
                     <div 
@@ -400,7 +403,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
                       className="w-full bg-github-card border border-github-border rounded-lg pl-6 py-4 pr-0 relative group"
                       onClick={() => handleTutorial("대시보드 히트맵", "지난 1년 동안의 활동 기록을 잔디 심기처럼 시각화하여 보여줘요.")}
                     >
-                      {/* Together Badge (Absolute to card) */}
+                      {/* Together Badge */}
                       {myRecord.habit.mode === 'together' && (
                          <div className="absolute top-4 right-4 text-xs text-github-muted flex items-center gap-1 bg-github-bg px-2 py-1 rounded-full border border-github-border z-10">
                             <Users size={12} /> 함께 하기
@@ -420,7 +423,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
                            </span>
                         </div>
 
-                        {/* Edit/Delete Buttons: Always visible, right-aligned in header */}
                         <div className="flex gap-1 bg-github-card rounded ml-4 flex-shrink-0">
                            <button 
                              onClick={(e) => { e.stopPropagation(); handleEditClick(myRecord.habit); }} 
@@ -439,13 +441,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
                         </div>
                       </div>
                       
-                      {/* Heatmap Component handles its own internal scrolling */}
                       <Heatmap myRecord={myRecord} peerRecords={peerRecords} rangeDays={365} />
                     </div>
                   ))}
                 </div>
-              </section>
-            )}
+              )}
+            </section>
 
             {/* Daily Goals List */}
             <section className="w-full">
@@ -470,7 +471,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
                                 e.currentTarget.showPicker();
                             }
                           } catch(err) {
-                             // fallback for browsers that don't support showPicker or handle it natively on click
+                             // fallback
                           }
                       }}
                       className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
@@ -541,13 +542,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
                   </button>
                 </div>
               )}
-              
-
             </section>
           </div>
          </main>
 
-        {/* Friend Sidebar - Fixed at right, full height of container */}
+        {/* Friend Sidebar */}
         {user && <FriendSidebar user={user} />}
       </div>
 
