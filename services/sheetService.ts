@@ -1,15 +1,14 @@
+
 import { User, Habit, HabitRecord, ApiResponse, SharedHabitData, Friend } from '../types';
 
 const USERS_SPREADSHEET_ID = '1iB0mVJjWRgRC1VuaoWKPE43EZVdJuoGaJoo5sQZNeXM';
 const RECORDS_SPREADSHEET_ID = '1iB0mVJjWRgRC1VuaoWKPE43EZVdJuoGaJoo5sQZNeXM';
 const API_URL = 'https://script.google.com/macros/s/AKfycbxEJPmVrt_kNdI4xU9Y8OVi0vyRGI92NCERrCaWZKvBScT5HqWxAoIIVybfkjlC6ROD/exec';
 
-const STORAGE_KEY_USERS = 'habithub_users';
-
-// --- Simple Cache Implementation ---
+// --- Cache ---
 let cachedRecords: HabitRecord[] | null = null;
 let lastFetchTime = 0;
-const CACHE_DURATION = 5000; // 5 seconds cache
+const CACHE_DURATION = 5000;
 
 export const getApiUrl = () => API_URL;
 
@@ -43,70 +42,35 @@ const parseRowsToRecords = (rows: any[]): HabitRecord[] => {
 
 const fetchGvizData = async (spreadsheetId: string, sheetName: string, query: string = 'select *'): Promise<any[]> => {
   const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?sheet=${sheetName}&tq=${encodeURIComponent(query)}&tqx=out:json&_=${Date.now()}`;
-  
   try {
     const response = await fetch(url);
-    if (!response.ok) throw new Error(`Sheet access failed (${response.status})`);
     const text = await response.text();
     const match = text.match(/google\.visualization\.Query\.setResponse\((.*)\);/);
-    if (!match) throw new Error("Failed to parse GVIZ response");
-    
+    if (!match) return [];
     const json = JSON.parse(match[1]);
     if (json.status !== 'ok') return [];
-    
-    const rows = json.table.rows;
-    return rows.map((row: any) => {
-        if (!row.c) return [];
-        return row.c.map((cell: any) => cell?.v ?? null);
-    });
-  } catch (e) {
-    return []; 
-  }
+    return json.table.rows.map((row: any) => row.c ? row.c.map((cell: any) => cell?.v ?? null) : []);
+  } catch (e) { return []; }
 };
 
 const sendToGas = async (params: any): Promise<ApiResponse<any>> => {
-  const apiUrl = getApiUrl();
-  if (!apiUrl) return { status: 'skipped' };
-
   try {
-    const response = await fetch(apiUrl, {
+    const response = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(params),
       redirect: 'follow',
     });
-    
-    if (!response.ok) return { status: 'error', message: `HTTP ${response.status}` };
     const text = await response.text();
     return JSON.parse(text);
-  } catch (e) {
-    return { status: 'error', message: String(e) };
-  }
+  } catch (e) { return { status: 'error', message: String(e) }; }
 };
 
-const invalidateCache = () => {
-  cachedRecords = null;
-  lastFetchTime = 0;
-};
-
-export const fetchUsers = async (): Promise<User[]> => {
-  let remoteUsers: User[] = [];
-  try {
-    const rows = await fetchGvizData(USERS_SPREADSHEET_ID, 'users', 'select A, B');
-    remoteUsers = rows.map(row => ({
-      name: String(row[0] || ''),
-      email: String(row[1] || '')
-    })).filter(u => u.email && u.email !== 'null');
-  } catch (e) {}
-  return remoteUsers;
-};
+export const invalidateCache = () => { cachedRecords = null; lastFetchTime = 0; };
 
 export const getAllRecords = async (forceRefresh = false): Promise<HabitRecord[]> => {
   const now = Date.now();
-  if (!forceRefresh && cachedRecords && (now - lastFetchTime < CACHE_DURATION)) {
-    return cachedRecords;
-  }
-
+  if (!forceRefresh && cachedRecords && (now - lastFetchTime < CACHE_DURATION)) return cachedRecords;
   const rows = await fetchGvizData(RECORDS_SPREADSHEET_ID, 'records', 'select A, B, C, D');
   cachedRecords = parseRowsToRecords(rows);
   lastFetchTime = now;
@@ -114,18 +78,55 @@ export const getAllRecords = async (forceRefresh = false): Promise<HabitRecord[]
 };
 
 export const fetchHabitRecords = async (userEmail: string): Promise<SharedHabitData[]> => {
+  if (!userEmail) return [];
   const targetEmail = userEmail.trim().toLowerCase();
-  const allRecords = await getAllRecords();
+  const allRecords = await getAllRecords(true);
   
-  const myRecords = allRecords.filter(r => 
-      r.email === targetEmail && 
-      r.habit && 
-      r.habit.recordStatus !== 'rejected' &&
-      r.habit.recordStatus !== 'deleted' && 
-      r.habit.recordStatus !== 'left'
+  // 1. 시트에 존재하는 내 모든 레코드를 필터링 없이 가져옵니다.
+  // (과거의 탈퇴/거절 기록까지 포함하여 이력을 확인하기 위함)
+  const myExistingRecords = allRecords.filter(r => r.email === targetEmail && r.habit);
+
+  // 2. 사용자가 이미 가지고 있는 sharedId 목록 (상태와 무관하게 모든 참여 이력)
+  const myInvolvedSharedIds = new Set(
+    myExistingRecords
+      .filter(r => r.habit.sharedId)
+      .map(r => r.habit.sharedId)
   );
 
-  return myRecords.map(myRecord => {
+  // 3. 추론형 초대 감지: 내 레코드는 없지만, 타인의 members 리스트에 내가 포함된 공유 습관 찾기
+  const allPotentialSharedHabits = allRecords.filter(r => 
+    r.habit && 
+    r.habit.mode === 'together' && 
+    r.habit.members?.some(m => m.toLowerCase() === targetEmail)
+  );
+
+  const finalRecords: HabitRecord[] = [...myExistingRecords];
+
+  // 4. 내가 참여한 적이 없는(시트에 레코드가 없는) 새로운 공유 습관들만 가상 초대 생성
+  allPotentialSharedHabits.forEach(remoteRecord => {
+    const sId = remoteRecord.habit.sharedId;
+    if (sId && !myInvolvedSharedIds.has(sId)) {
+      finalRecords.push({
+        email: targetEmail,
+        habit_id: `invited-${sId}`,
+        habit: {
+          ...remoteRecord.habit,
+          userEmail: targetEmail,
+          recordStatus: 'invited' 
+        },
+        logs: {}
+      });
+      myInvolvedSharedIds.add(sId); // 중복 방지
+    }
+  });
+
+  // 5. UI에는 표시할 가치가 있는 것들만 전달 (active, invited)
+  // 'left', 'rejected', 'deleted' 상태는 시트에는 남지만 UI 대시보드에서는 필터링됨
+  const recordsToShow = finalRecords.filter(r => 
+    r.habit && (r.habit.recordStatus === 'active' || r.habit.recordStatus === 'invited' || !r.habit.recordStatus)
+  );
+
+  return recordsToShow.map(myRecord => {
     let peerRecords: HabitRecord[] = [];
     if (myRecord.habit.mode === 'together' && myRecord.habit.sharedId) {
       peerRecords = allRecords.filter(r => 
@@ -139,58 +140,52 @@ export const fetchHabitRecords = async (userEmail: string): Promise<SharedHabitD
   });
 };
 
+export const fetchUsers = async (): Promise<User[]> => {
+  const rows = await fetchGvizData(USERS_SPREADSHEET_ID, 'users', 'select A, B');
+  return rows.map(row => ({ name: String(row[0] || ''), email: String(row[1] || '') })).filter(u => u.email);
+};
+
 export const createUser = async (user: User): Promise<boolean> => {
   const result = await sendToGas({ action: 'create_user', name: user.name, email: user.email });
   return result.status === 'success' || result.status === 'skipped'; 
 };
 
-// [REVISED] 초기 로그(initialLogs)를 한 번에 저장하도록 수정하여 중복 생성을 방지함
 export const createHabit = async (creatorEmail: string, habit: Habit, invitees: string[], initialLogs: { [date: string]: boolean } = {}): Promise<ApiResponse<any>> => {
   invalidateCache();
   const sharedId = habit.mode === 'together' ? (habit.sharedId || crypto.randomUUID()) : undefined;
   const myHabitId = habit.id || `h-${Date.now()}`;
+  const members = Array.from(new Set([creatorEmail.toLowerCase(), ...invitees.map(e => e.toLowerCase())]));
 
   const myHabit: Habit = {
     ...habit,
     id: myHabitId,
     sharedId,
-    userEmail: creatorEmail,
-    creatorEmail: creatorEmail, 
+    userEmail: creatorEmail.toLowerCase(),
+    creatorEmail: creatorEmail.toLowerCase(), 
     recordStatus: 'active',
-    members: [creatorEmail, ...invitees]
+    members: members
   };
   
-  // 첫 번째 호출에서 모든 정보(습관 설정 + 로그)를 함께 보냄
   const myResult = await saveHabitLog(creatorEmail, myHabitId, myHabit, initialLogs);
   if (myResult.status !== 'success') return myResult;
 
   if (habit.mode === 'together' && invitees.length > 0) {
-    // 초대받은 유저들에게도 레코드 생성 (비동기로 진행)
-    await Promise.all(invitees.map(inviteeEmail => {
+    for (const inviteeEmail of invitees) {
       const inviteeHabitId = `h-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
       const inviteeHabit: Habit = {
         ...habit,
         id: inviteeHabitId,
         sharedId,
-        userEmail: inviteeEmail,
-        creatorEmail: creatorEmail,
+        userEmail: inviteeEmail.toLowerCase(),
+        creatorEmail: creatorEmail.toLowerCase(),
         recordStatus: 'invited', 
-        members: [creatorEmail, ...invitees]
+        members: members
       };
-      return saveHabitLog(inviteeEmail, inviteeHabitId, inviteeHabit, {});
-    }));
+      await saveHabitLog(inviteeEmail, inviteeHabitId, inviteeHabit, {});
+    }
   }
-  return myResult;
-};
-
-export const deleteHabit = async (record: HabitRecord): Promise<ApiResponse<any>> => {
   invalidateCache();
-  const newStatus = record.habit.mode === 'together' ? 'left' : 'deleted';
-  const updatedHabit: Habit = { 
-    ...record.habit, 
-    recordStatus: newStatus as any 
-  };
-  return await saveHabitLog(record.email, record.habit_id, updatedHabit, record.logs);
+  return myResult;
 };
 
 export const saveHabitLog = async (userEmail: string, habitId: string, habitConfig: Habit, logs: { [date: string]: boolean }): Promise<ApiResponse<any>> => {
@@ -204,33 +199,30 @@ export const saveHabitLog = async (userEmail: string, habitId: string, habitConf
   });
 };
 
+export const deleteHabit = async (record: HabitRecord): Promise<ApiResponse<any>> => {
+  invalidateCache();
+  const newStatus = record.habit.mode === 'together' ? 'left' : 'deleted';
+  const updatedHabit: Habit = { ...record.habit, recordStatus: newStatus as any };
+  // 시트에서 완전히 삭제하는 대신 상태를 업데이트하여 남겨둠 (재초대 방지 차단막)
+  return await saveHabitLog(record.email, record.habit_id, updatedHabit, record.logs);
+};
+
 export const respondToInvite = async (record: HabitRecord, accept: boolean) => {
   invalidateCache();
   const newStatus = accept ? 'active' : 'rejected';
-  const updatedHabit = { ...record.habit, recordStatus: newStatus as any };
-  await saveHabitLog(record.email, record.habit_id, updatedHabit, record.logs);
+  // 만약 가상 레코드(invited-...)였다면 실제 새로운 ID를 부여하여 저장
+  const actualHabitId = record.habit_id.startsWith('invited-') ? `h-${Date.now()}` : record.habit_id;
+  const updatedHabit = { ...record.habit, id: actualHabitId, recordStatus: newStatus as any };
+  await saveHabitLog(record.email, actualHabitId, updatedHabit, record.logs);
+  invalidateCache();
   return updatedHabit;
 };
 
 export const fetchFriends = async (userEmail: string): Promise<Friend[]> => {
   const targetEmail = userEmail.trim().toLowerCase();
-  let rows: any[] = [];
-  try {
-    const res = await sendToGas({ action: 'get_friends' });
-    if (res.status === 'success' && Array.isArray(res.data)) {
-      rows = res.data;
-      if (rows.length > 0 && (String(rows[0][0]).includes('requester') || String(rows[0][0]).includes('요청자'))) {
-          rows = rows.slice(1);
-      }
-    }
-  } catch (e) {}
-
-  if (rows.length === 0) {
-    try {
-      rows = await fetchGvizData(RECORDS_SPREADSHEET_ID, 'friends', 'select A, B, C, D');
-    } catch(e) {}
-  }
-
+  const res = await sendToGas({ action: 'get_friends' });
+  let rows = (res.status === 'success' && Array.isArray(res.data)) ? res.data : [];
+  if (rows.length > 0 && (String(rows[0][0]).includes('requester'))) rows = rows.slice(1);
   return rows.map(row => ({
      id: `${row[0]}_${row[1]}`,
      requester: String(row[0] || '').toLowerCase(),
