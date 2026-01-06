@@ -231,7 +231,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
 
             <section className="w-full">
               <div className="flex items-center justify-between mb-6"><h2 className="text-xl font-bold flex items-center gap-2"><Activity size={20} className="text-github-muted"/>활동 대시보드</h2></div>
-              {activeSharedData.length === 0 ? <div className="w-full bg-github-card border border-github-border rounded-lg p-10 text-center text-github-muted italic">아직 활성화된 습관 활동이 없습니다.</div> : (
+              {activeSharedData.length === 0 ? <div className="w-full min-w-[720px] bg-github-card border border-github-border rounded-lg p-10 text-center text-github-muted italic">아직 활성화된 습관 활동이 없습니다.</div> : (
                 <div className="flex flex-col gap-3 w-full max-w-full">
                   {activeSharedData.map(({ myRecord, peerRecords }) => (
                     <div key={myRecord.habit_id} className="w-full max-w-full min-w-0 bg-github-card border border-github-border rounded-lg pl-6 pr-6 pt-4 pb-4 relative group">
