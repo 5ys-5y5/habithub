@@ -1,5 +1,5 @@
 services:
-  - type: static
+  - type: static_site
     name: habithub
     buildCommand: npm install && npm run build
     staticPublishPath: dist
