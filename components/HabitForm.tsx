@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { X, CheckCircle2, Users, User, Plus, Trash2 } from 'lucide-react';
 import { Habit } from '../types';
@@ -226,8 +227,8 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
               <label className="block text-sm font-semibold text-github-text">목표 및 주기</label>
               <div className="bg-github-card border border-github-border rounded-lg p-4 space-y-4">
                 
-                {/* Amount */}
-                <div className="flex items-center gap-3">
+                {/* Amount - Centered elements inside this div */}
+                <div className="flex items-center justify-center gap-3">
                   <span className="text-sm text-github-muted">하루에</span>
                   <input 
                     type="number" 
