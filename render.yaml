@@ -1,0 +1,9 @@
+services:
+  - type: static_site
+    name: habithub
+    env: node
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
