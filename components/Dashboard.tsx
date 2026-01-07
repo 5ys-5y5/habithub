@@ -52,6 +52,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
   const [tutorialMessage, setTutorialMessage] = useState<{ title: string; desc: string } | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   
+  // New state for tabs
+  const [activeTab, setActiveTab] = useState<'personal' | 'together'>('personal');
+
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -165,6 +168,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
   const activeSharedData = useMemo(() => sharedData.filter(d => d.myRecord.habit && (d.myRecord.habit.recordStatus === 'active' || !d.myRecord.habit.recordStatus)), [sharedData]);
   const invitedHabits = useMemo(() => sharedData.filter(d => d.myRecord.habit && d.myRecord.habit.recordStatus === 'invited'), [sharedData]);
   
+  // Filter habits based on active tab
+  const currentTabHabits = useMemo(() => {
+    return activeSharedData.filter(d => {
+        const mode = d.myRecord.habit.mode || 'personal';
+        return mode === activeTab;
+    });
+  }, [activeSharedData, activeTab]);
+
+  // Separate Do and Don't habits
+  const dontHabits = useMemo(() => currentTabHabits.filter(d => d.myRecord.habit.type === 'dont'), [currentTabHabits]);
+  const doHabits = useMemo(() => currentTabHabits.filter(d => d.myRecord.habit.type === 'do'), [currentTabHabits]);
+
   const todaysHabits = useMemo(() => {
     const dayOfWeek = selectedDate.getDay(); 
     return activeSharedData.filter(({ myRecord: record }) => {
@@ -183,9 +198,41 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
+  const renderHabitCard = (data: SharedHabitData) => {
+      const { myRecord, peerRecords } = data;
+      const weeklyRate = calculateWeeklyRate(myRecord);
+      const currentUserEmail = user?.email.toLowerCase() || 'guest';
+      const habitCreator = (myRecord.habit.creatorEmail || myRecord.habit.userEmail || '').toLowerCase();
+      const isCreator = habitCreator === currentUserEmail;
+
+      return (
+          <div key={myRecord.habit_id} className="w-full bg-github-card border border-github-border rounded-lg p-4 sm:px-6 sm:py-4 relative group hover:border-github-muted transition-colors shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <span className={`w-3 h-3 rounded-full flex-shrink-0 ${myRecord.habit.color}`}></span>
+                <div className="flex flex-row sm:flex-row gap-1 sm:gap-4 sm:items-center min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm truncate">{myRecord.habit.name}</span>
+                  </div>
+                  <span className="text-[10px] text-github-muted flex items-center gap-1">
+                    <Target size={10} /> 
+                    <span className={weeklyRate >= 80 ? 'text-github-success' : weeklyRate >= 40 ? 'text-github-accent' : 'text-red-400'}>{weeklyRate}%</span>
+                  </span>
+                </div>
+              </div>
+              <div className="flex gap-1 items-center opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={(e) => { e.stopPropagation(); if(isCreator) { setEditingHabit(myRecord.habit); setShowHabitForm(true); } }} className={`p-2 rounded transition-colors ${isCreator ? 'text-github-muted hover:text-github-accent hover:bg-github-btn' : 'text-github-border cursor-not-allowed'}`} title={isCreator ? "수정" : "생성자만 수정 가능"}><Pencil size={14} /></button>
+                <button onClick={(e) => handleDeleteHabitClick(e, myRecord)} className="p-2 text-github-muted hover:text-red-400 hover:bg-github-btn rounded transition-colors"><Trash2 size={14} /></button>
+              </div>
+            </div>
+            <Heatmap myRecord={myRecord} peerRecords={peerRecords} rangeDays={365} />
+          </div>
+      );
+  };
+
   return (
     <div className="h-screen bg-github-bg text-github-text font-sans flex flex-col overflow-hidden">
-      <nav className="bg-github-card border-b border-github-border py-4 px-6 flex justify-between items-center z-20 shadow-sm flex-shrink-0">
+      <nav className="bg-github-card border-b border-github-border py-4 px-4 sm:px-6 flex justify-between items-center z-20 shadow-sm flex-shrink-0">
         <h1 className="font-bold text-lg tracking-tight text-white">HabitHub</h1>
         <div className="flex items-center gap-4">
           {user ? (
@@ -194,11 +241,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
         </div>
       </nav>
 
-      <div className="flex-1 flex w-full overflow-hidden">
-         {/* main: flex justify-center 대신 mx-auto를 사용할 수 있도록 일반적인 스크롤 영역으로 설정 */}
+      <div className="flex-1 flex w-full overflow-hidden relative">
          <main className="flex-1 min-w-0 overflow-y-auto custom-scrollbar">
-          {/* 컨테이너: mx-auto로 중앙 정렬하고 pb-80으로 충분한 하단 여백 확보 */}
-          <div className="max-w-4xl mx-auto p-4 sm:p-8 flex flex-col gap-10 pb-80">
+          <div className="max-w-4xl mx-auto p-4 sm:p-8 flex flex-col gap-6 sm:gap-10 pb-32 sm:pb-80">
             
             {invitedHabits.length > 0 && (
               <section className="w-full bg-github-card border border-github-accent/40 rounded-lg p-5 shadow-lg shadow-github-accent/5 animate-in fade-in slide-in-from-top-4">
@@ -208,7 +253,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
                  </div>
                  <div className="space-y-3">
                    {invitedHabits.map(({ myRecord: record }) => (
-                       <div key={record.habit_id} className="flex items-center justify-between bg-github-bg/50 p-4 rounded-lg border border-github-border/50 hover:border-github-accent/30 transition-all">
+                       <div key={record.habit_id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-github-bg/50 p-4 rounded-lg border border-github-border/50 hover:border-github-accent/30 transition-all gap-4">
                           <div className="flex items-center gap-4">
                              <div className={`w-10 h-10 rounded-full ${record.habit.color} flex items-center justify-center text-white font-bold shadow-lg`}>{record.habit.name.charAt(0)}</div>
                              <div>
@@ -221,8 +266,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
                              </div>
                           </div>
                           <div className="flex gap-2">
-                             <button onClick={() => handleInviteResponse(record, true)} className="px-4 py-2 bg-github-success text-white rounded-md text-xs font-bold hover:bg-github-successHover shadow-sm active:scale-95 transition-all">참여하기</button>
-                             <button onClick={() => handleInviteResponse(record, false)} className="px-4 py-2 bg-github-btn text-github-muted rounded-md text-xs font-bold hover:text-red-400 hover:bg-github-btnHover transition-all">거절</button>
+                             <button onClick={() => handleInviteResponse(record, true)} className="flex-1 sm:flex-none px-4 py-2 bg-github-success text-white rounded-md text-xs font-bold hover:bg-github-successHover shadow-sm active:scale-95 transition-all">참여하기</button>
+                             <button onClick={() => handleInviteResponse(record, false)} className="flex-1 sm:flex-none px-4 py-2 bg-github-btn text-github-muted rounded-md text-xs font-bold hover:text-red-400 hover:bg-github-btnHover transition-all">거절</button>
                           </div>
                        </div>
                    ))}
@@ -231,39 +276,46 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
             )}
 
             <section className="w-full">
-              <div className="flex items-center justify-between mb-6"><h2 className="text-xl font-bold flex items-center gap-2"><Activity size={20} className="text-github-muted"/>활동 대시보드</h2></div>
-              {activeSharedData.length === 0 ? <div className="w-full bg-github-card border border-github-border rounded-lg p-10 text-center text-github-muted italic">아직 활성화된 습관 활동이 없습니다.</div> : (
-                <div className="flex flex-col gap-4 w-full">
-                  {activeSharedData.map(({ myRecord, peerRecords }) => {
-                    const weeklyRate = calculateWeeklyRate(myRecord);
-                    const currentUserEmail = user?.email.toLowerCase() || 'guest';
-                    const habitCreator = (myRecord.habit.creatorEmail || myRecord.habit.userEmail || '').toLowerCase();
-                    const isCreator = habitCreator === currentUserEmail;
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                <h2 className="text-xl font-bold flex items-center gap-2"><Activity size={20} className="text-github-muted"/>활동 대시보드</h2>
+                
+                <div className="flex gap-2 p-1 bg-github-card border border-github-border rounded-lg self-start sm:self-auto">
+                    <button onClick={() => setActiveTab('personal')} className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'personal' ? 'bg-github-btn text-github-text shadow-sm' : 'text-github-muted hover:text-github-text'}`}>
+                        <UserIcon size={14} /> 혼자 하기
+                    </button>
+                    <button onClick={() => setActiveTab('together')} className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'together' ? 'bg-github-btn text-github-text shadow-sm' : 'text-github-muted hover:text-github-text'}`}>
+                        <Users size={14} /> 같이 하기
+                    </button>
+                </div>
+              </div>
 
-                    return (
-                      <div key={myRecord.habit_id} className="w-full bg-github-card border border-github-border rounded-lg pl-6 pr-6 pt-4 pb-4 relative group hover:border-github-muted transition-colors shadow-sm">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <span className={`w-3 h-3 rounded-full ${myRecord.habit.color}`}></span>
-                            <div className="flex flex-row gap-4 items-center">
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold text-sm truncate">{myRecord.habit.name}</span>
-                                <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${myRecord.habit.mode === 'together' ? 'bg-github-accent/10 text-github-accent border border-github-accent/20' : 'bg-github-muted/10 text-github-muted border border-github-muted/20'}`}>
-                                  {myRecord.habit.mode === 'together' ? <><Users size={10}/>공유</> : <><UserIcon size={10}/>개인</>}
-                                </span>
-                              </div>
-                              <span className="text-[10px] text-github-muted flex items-center gap-1"><Target size={10} /> 주간 달성률: <span className={weeklyRate >= 80 ? 'text-github-success' : weeklyRate >= 40 ? 'text-github-accent' : 'text-red-400'}>{weeklyRate}%</span></span>
-                            </div>
-                          </div>
-                          <div className="flex gap-1 items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={(e) => { e.stopPropagation(); if(isCreator) { setEditingHabit(myRecord.habit); setShowHabitForm(true); } }} className={`p-2 rounded transition-colors ${isCreator ? 'text-github-muted hover:text-github-accent hover:bg-github-btn' : 'text-github-border cursor-not-allowed'}`} title={isCreator ? "수정" : "생성자만 수정 가능"}><Pencil size={14} /></button>
-                            <button onClick={(e) => handleDeleteHabitClick(e, myRecord)} className="p-2 text-github-muted hover:text-red-400 hover:bg-github-btn rounded transition-colors"><Trash2 size={14} /></button>
-                          </div>
-                        </div>
-                        <Heatmap myRecord={myRecord} peerRecords={peerRecords} rangeDays={365} />
-                      </div>
-                    );
-                  })}
+              {currentTabHabits.length === 0 ? (
+                <div className="w-full bg-github-card border border-github-border rounded-lg p-10 text-center text-github-muted italic">
+                   {activeTab === 'personal' ? '혼자 하는 습관이 없습니다.' : '같이 하는 습관이 없습니다.'}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-8">
+                  {/* Don't Section - First */}
+                  {dontHabits.length > 0 && (
+                    <div className="flex flex-col gap-4">
+                        <h3 className="text-sm font-bold text-red-400 flex items-center gap-2 uppercase tracking-wider">
+                            <span className="w-2 h-2 rounded-full bg-red-400"></span>
+                            안 하기 (Don't)
+                        </h3>
+                        {dontHabits.map(renderHabitCard)}
+                    </div>
+                  )}
+
+                  {/* Do Section - Second */}
+                  {doHabits.length > 0 && (
+                    <div className="flex flex-col gap-4">
+                        <h3 className="text-sm font-bold text-github-success flex items-center gap-2 uppercase tracking-wider">
+                            <span className="w-2 h-2 rounded-full bg-github-success"></span>
+                            잘 하기 (Do)
+                        </h3>
+                        {doHabits.map(renderHabitCard)}
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -271,9 +323,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
             <section className="w-full">
               <div className="flex items-center justify-between mb-9 bg-github-card p-3 rounded-lg border border-github-border shadow-sm">
                 <button onClick={() => shiftDate(-1)} className="p-2 hover:bg-github-btnHover rounded-full transition-colors text-github-text"><ChevronLeft size={20} /></button>
-                <div onClick={triggerDatePicker} className="text-center relative group p-2 rounded transition-colors flex-1 cursor-pointer select-none">
-                  <h2 className="text-lg font-bold text-white">오늘의 목표</h2>
-                  <div className="text-sm text-github-muted group-hover:text-github-accent flex items-center justify-center gap-2">{displayDate}</div>
+                <div onClick={triggerDatePicker} className="text-center relative group p-2 rounded transition-colors flex-1 cursor-pointer select-none min-w-0">
+                  <h2 className="text-base sm:text-lg font-bold text-white whitespace-nowrap overflow-hidden text-ellipsis">오늘의 목표</h2>
+                  <div className="text-xs sm:text-sm text-github-muted group-hover:text-github-accent flex items-center justify-center gap-2">{displayDate}</div>
                 </div>
                 <button onClick={() => shiftDate(1)} className="p-2 hover:bg-github-btnHover rounded-full transition-colors text-github-text"><ChevronRight size={20} /></button>
               </div>
@@ -285,24 +337,24 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
                     const status = record.logs[formattedDate];
                     const isDone = status === true;
                     return (
-                      <div key={record.habit_id} className={`bg-github-card border ${isDone ? 'border-github-muted shadow-inner' : 'border-github-border shadow-sm'} rounded-xl p-5 flex items-center justify-between transition-all hover:border-github-muted`}>
-                        <div className="flex items-center gap-5">
-                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg transition-all ${isDone ? record.habit.color : `${record.habit.color} opacity-30 scale-95`}`}>
+                      <div key={record.habit_id} className={`bg-github-card border ${isDone ? 'border-github-muted shadow-inner' : 'border-github-border shadow-sm'} rounded-xl p-4 sm:p-5 flex items-center justify-between transition-all hover:border-github-muted`}>
+                        <div className="flex items-center gap-3 sm:gap-5 min-w-0 flex-1">
+                          <div className={`w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0 rounded-2xl flex items-center justify-center text-white font-black text-lg sm:text-xl shadow-lg transition-all ${isDone ? record.habit.color : `${record.habit.color} opacity-30 scale-95`}`}>
                             {record.habit.name.charAt(0)}
                           </div>
-                          <div>
-                            <h3 className={`font-bold text-lg ${isDone ? 'text-github-muted line-through decoration-2' : 'text-white'}`}>{record.habit.name}</h3>
+                          <div className="min-w-0 flex-1 mr-2">
+                            <h3 className={`font-bold text-base sm:text-lg truncate ${isDone ? 'text-github-muted line-through decoration-2' : 'text-white'}`}>{record.habit.name}</h3>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="text-xs px-2 py-0.5 bg-github-bg rounded border border-github-border text-github-muted">{record.habit.goal} {record.habit.unit}</span>
-                              <span className="text-[10px] text-github-muted/60 uppercase tracking-widest">{record.habit.type === 'do' ? 'Achieve' : 'Avoid'}</span>
+                              <span className="text-[10px] sm:text-xs px-2 py-0.5 bg-github-bg rounded border border-github-border text-github-muted whitespace-nowrap">{record.habit.goal} {record.habit.unit}</span>
+                              <span className="text-[9px] sm:text-[10px] text-github-muted/60 uppercase tracking-widest hidden xs:inline">{record.habit.type === 'do' ? 'Achieve' : 'Avoid'}</span>
                             </div>
                           </div>
                         </div>
                         <button 
                           onClick={() => handleToggleLog(record)} 
-                          className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center transition-all active:scale-90 ${isDone ? 'bg-github-btn border-github-muted text-github-muted' : 'bg-github-success/10 border-github-success text-github-success hover:bg-github-success hover:text-white shadow-success/20 shadow-lg'}`}
+                          className={`w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0 rounded-2xl border-2 flex items-center justify-center transition-all active:scale-90 ${isDone ? 'bg-github-btn border-github-muted text-github-muted' : 'bg-github-success/10 border-github-success text-github-success hover:bg-github-success hover:text-white shadow-success/20 shadow-lg'}`}
                         >
-                          {isDone ? <XIcon size={28} /> : <Plus size={28} />}
+                          {isDone ? <XIcon size={24} className="sm:w-7 sm:h-7" /> : <Plus size={24} className="sm:w-7 sm:h-7" />}
                         </button>
                       </div>
                     );
@@ -323,6 +375,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onLoginReq }) => 
          </main>
         {user && <FriendSidebar user={user} />}
       </div>
+      
+      {/* Floating Add Button */}
+      <button 
+        onClick={() => { if (!user) setTutorialMessage({title:"새 습관", desc:"로그인 후 습관을 만들 수 있습니다."}); else { setEditingHabit(undefined); setShowHabitForm(true); } }} 
+        className="fixed bottom-6 right-6 z-40 w-14 h-14 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:bg-blue-700 hover:scale-110 active:scale-95 transition-all border border-white/10"
+        title="새로운 습관 추가"
+      >
+         <Plus size={28} />
+      </button>
 
       {confirmModal?.isOpen && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">

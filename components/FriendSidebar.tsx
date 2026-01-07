@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { User, Friend, SharedHabitData, HabitRecord } from '../types';
 import { fetchFriends, requestFriend, respondFriend, removeFriend, getAllRecords, fetchUsers } from '../services/sheetService';
@@ -23,7 +24,7 @@ const FriendSidebar: React.FC<FriendSidebarProps> = ({ user }) => {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [friendsWithStats, setFriendsWithStats] = useState<FriendWithStats[]>([]);
   const [loading, setLoading] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
@@ -158,7 +159,7 @@ const FriendSidebar: React.FC<FriendSidebarProps> = ({ user }) => {
 
   if (isCollapsed) {
     return (
-      <div className="w-12 flex-shrink-0 bg-github-card border-l border-github-border flex flex-col h-full items-center py-4 transition-all duration-300">
+      <div className="w-12 flex-shrink-0 bg-github-card border-l border-github-border flex flex-col h-full items-center py-4 transition-all duration-300 z-30">
          <button onClick={() => setIsCollapsed(false)} className="p-2 text-github-muted hover:text-github-text hover:bg-github-btn rounded-md mb-4" title="친구 목록 펼치기">
            <PanelRightOpen size={20} />
          </button>
@@ -175,7 +176,7 @@ const FriendSidebar: React.FC<FriendSidebarProps> = ({ user }) => {
   }
 
   return (
-    <div className="w-full lg:w-80 flex-shrink-0 bg-github-card border-l border-github-border flex flex-col h-full transition-all duration-300">
+    <div className="fixed inset-0 z-50 lg:static lg:z-auto w-full lg:w-80 flex-shrink-0 bg-github-card lg:border-l border-github-border flex flex-col h-full transition-all duration-300">
        <div className="p-4 border-b border-github-border flex items-center justify-between">
          <div className="flex items-center gap-2">
            <button onClick={() => setIsCollapsed(true)} className="text-github-muted hover:text-github-text" title="접기">

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { X, CheckCircle2, Users, User, Plus, Trash2, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Save, RotateCcw, Image as ImageIcon, Upload, Check, Mail, UserMinus, Loader2 } from 'lucide-react';
 import { Habit } from '../types';
@@ -228,7 +229,7 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    const dates = Array.from(files).map(file => {
+    const dates = Array.from(files).map((file: File) => {
       const d = new Date(file.lastModified);
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       return dateStr;
