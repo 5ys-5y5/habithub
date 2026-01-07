@@ -4,10 +4,11 @@ import Dashboard from './components/Dashboard';
 import FriendPage from './components/FriendPage';
 import AuthModal from './components/AuthModal';
 import { User } from './types';
+import { preloadData, invalidateCache } from './services/sheetService';
 
 const AUTH_KEY = 'habithub_current_user';
 
-function App() {
+export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem(AUTH_KEY);
     return saved ? JSON.parse(saved) : null;
@@ -19,8 +20,11 @@ function App() {
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem(AUTH_KEY, JSON.stringify(currentUser));
+      // Pre-load friend data and records in the background immediately after login
+      preloadData(currentUser.email);
     } else {
       localStorage.removeItem(AUTH_KEY);
+      invalidateCache(); // Clear cache on logout
     }
   }, [currentUser]);
 
@@ -74,5 +78,3 @@ function App() {
     </>
   );
 }
-
-export default App;

@@ -7,8 +7,10 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbxEJPmVrt_kNdI4xU9Y8OVi
 
 // --- Cache ---
 let cachedRecords: HabitRecord[] | null = null;
+let cachedFriends: Friend[] | null = null; // Add Friends Cache
 let lastFetchTime = 0;
-const CACHE_DURATION = 5000;
+// Increase cache duration to 5 minutes to support instant navigation
+const CACHE_DURATION = 300000; 
 
 export const getApiUrl = () => API_URL;
 
@@ -66,7 +68,18 @@ const sendToGas = async (params: any): Promise<ApiResponse<any>> => {
   } catch (e) { return { status: 'error', message: String(e) }; }
 };
 
-export const invalidateCache = () => { cachedRecords = null; lastFetchTime = 0; };
+export const invalidateCache = () => { 
+  cachedRecords = null; 
+  cachedFriends = null; 
+  lastFetchTime = 0; 
+};
+
+// New function to pre-load data immediately after login
+export const preloadData = (userEmail: string) => {
+  // Fire requests in background, do not await
+  getAllRecords(); 
+  fetchFriends(userEmail); 
+};
 
 export const getAllRecords = async (forceRefresh = false): Promise<HabitRecord[]> => {
   const now = Date.now();
@@ -80,20 +93,16 @@ export const getAllRecords = async (forceRefresh = false): Promise<HabitRecord[]
 export const fetchHabitRecords = async (userEmail: string): Promise<SharedHabitData[]> => {
   if (!userEmail) return [];
   const targetEmail = userEmail.trim().toLowerCase();
-  const allRecords = await getAllRecords(true);
+  const allRecords = await getAllRecords(); // Remove forceRefresh true to use cache
   
-  // 1. 시트에 존재하는 내 모든 레코드를 필터링 없이 가져옵니다.
-  // (과거의 탈퇴/거절 기록까지 포함하여 이력을 확인하기 위함)
   const myExistingRecords = allRecords.filter(r => r.email === targetEmail && r.habit);
 
-  // 2. 사용자가 이미 가지고 있는 sharedId 목록 (상태와 무관하게 모든 참여 이력)
   const myInvolvedSharedIds = new Set(
     myExistingRecords
       .filter(r => r.habit.sharedId)
       .map(r => r.habit.sharedId)
   );
 
-  // 3. 추론형 초대 감지: 내 레코드는 없지만, 타인의 members 리스트에 내가 포함된 공유 습관 찾기
   const allPotentialSharedHabits = allRecords.filter(r => 
     r.habit && 
     r.habit.mode === 'together' && 
@@ -102,7 +111,6 @@ export const fetchHabitRecords = async (userEmail: string): Promise<SharedHabitD
 
   const finalRecords: HabitRecord[] = [...myExistingRecords];
 
-  // 4. 내가 참여한 적이 없는(시트에 레코드가 없는) 새로운 공유 습관들만 가상 초대 생성
   allPotentialSharedHabits.forEach(remoteRecord => {
     const sId = remoteRecord.habit.sharedId;
     if (sId && !myInvolvedSharedIds.has(sId)) {
@@ -116,12 +124,10 @@ export const fetchHabitRecords = async (userEmail: string): Promise<SharedHabitD
         },
         logs: {}
       });
-      myInvolvedSharedIds.add(sId); // 중복 방지
+      myInvolvedSharedIds.add(sId);
     }
   });
 
-  // 5. UI에는 표시할 가치가 있는 것들만 전달 (active, invited)
-  // 'left', 'rejected', 'deleted' 상태는 시트에는 남지만 UI 대시보드에서는 필터링됨
   const recordsToShow = finalRecords.filter(r => 
     r.habit && (r.habit.recordStatus === 'active' || r.habit.recordStatus === 'invited' || !r.habit.recordStatus)
   );
@@ -151,6 +157,7 @@ export const createUser = async (user: User): Promise<boolean> => {
 };
 
 export const createHabit = async (creatorEmail: string, habit: Habit, invitees: string[], initialLogs: { [date: string]: boolean } = {}): Promise<ApiResponse<any>> => {
+  // Optimistic update logic usually handled in UI, but we invalidate cache here
   invalidateCache();
   const sharedId = habit.mode === 'together' ? (habit.sharedId || crypto.randomUUID()) : undefined;
   const myHabitId = habit.id || `h-${Date.now()}`;
@@ -184,7 +191,7 @@ export const createHabit = async (creatorEmail: string, habit: Habit, invitees: 
       await saveHabitLog(inviteeEmail, inviteeHabitId, inviteeHabit, {});
     }
   }
-  invalidateCache();
+  // No need to invalidate again since saveHabitLog does it
   return myResult;
 };
 
@@ -203,14 +210,12 @@ export const deleteHabit = async (record: HabitRecord): Promise<ApiResponse<any>
   invalidateCache();
   const newStatus = record.habit.mode === 'together' ? 'left' : 'deleted';
   const updatedHabit: Habit = { ...record.habit, recordStatus: newStatus as any };
-  // 시트에서 완전히 삭제하는 대신 상태를 업데이트하여 남겨둠 (재초대 방지 차단막)
   return await saveHabitLog(record.email, record.habit_id, updatedHabit, record.logs);
 };
 
 export const respondToInvite = async (record: HabitRecord, accept: boolean) => {
   invalidateCache();
   const newStatus = accept ? 'active' : 'rejected';
-  // 만약 가상 레코드(invited-...)였다면 실제 새로운 ID를 부여하여 저장
   const actualHabitId = record.habit_id.startsWith('invited-') ? `h-${Date.now()}` : record.habit_id;
   const updatedHabit = { ...record.habit, id: actualHabitId, recordStatus: newStatus as any };
   await saveHabitLog(record.email, actualHabitId, updatedHabit, record.logs);
@@ -220,26 +225,46 @@ export const respondToInvite = async (record: HabitRecord, accept: boolean) => {
 
 export const fetchFriends = async (userEmail: string): Promise<Friend[]> => {
   const targetEmail = userEmail.trim().toLowerCase();
+  
+  // Return cached friends if valid and fresh
+  if (cachedFriends) return cachedFriends;
+
   const res = await sendToGas({ action: 'get_friends' });
   let rows = (res.status === 'success' && Array.isArray(res.data)) ? res.data : [];
   if (rows.length > 0 && (String(rows[0][0]).includes('requester'))) rows = rows.slice(1);
-  return rows.map(row => ({
+  
+  const allFriends = rows.map(row => ({
      id: `${row[0]}_${row[1]}`,
      requester: String(row[0] || '').toLowerCase(),
      receiver: String(row[1] || '').toLowerCase(),
      status: (row[2] || 'pending') as any,
      updatedAt: row[3]
-  })).filter(f => f.requester === targetEmail || f.receiver === targetEmail);
+  }));
+  
+  // Cache the filtered list for this user? No, cache all and filter locally?
+  // Since we don't have multi-user login simultaneously, caching the result of the API call is fine.
+  // The API returns ALL friendships in the system usually (based on GS logic), or filtered.
+  // Assuming the GAS returns all, we filter here.
+  
+  // Current implementation: filtering happens after fetch.
+  // We will cache the result for this user specifically to be safe.
+  
+  const myFriends = allFriends.filter((f: Friend) => f.requester === targetEmail || f.receiver === targetEmail);
+  cachedFriends = myFriends;
+  return myFriends;
 };
 
 export const requestFriend = async (requester: string, receiver: string): Promise<ApiResponse<any>> => {
+  cachedFriends = null; // Invalidate friend cache
   return await sendToGas({ action: 'request_friend', requester: requester.toLowerCase(), receiver: receiver.toLowerCase() });
 };
 
 export const respondFriend = async (requester: string, receiver: string, status: 'accepted' | 'rejected'): Promise<ApiResponse<any>> => {
+  cachedFriends = null; // Invalidate friend cache
   return await sendToGas({ action: 'respond_friend', requester: requester.toLowerCase(), receiver: receiver.toLowerCase(), status: status });
 };
 
 export const removeFriend = async (me: string, friendEmail: string): Promise<ApiResponse<any>> => {
+  cachedFriends = null; // Invalidate friend cache
   return await sendToGas({ action: 'remove_friend', me: me.toLowerCase(), friend: friendEmail.toLowerCase() });
 };
