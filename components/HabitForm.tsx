@@ -122,6 +122,16 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
     );
   };
 
+  const toggleSpecificDay = (dayIdx: number) => {
+    setFormData(prev => {
+      const currentDays = prev.frequency?.days || [];
+      const newDays = currentDays.includes(dayIdx)
+        ? currentDays.filter(d => d !== dayIdx)
+        : [...currentDays, dayIdx].sort();
+      return { ...prev, frequency: { ...prev.frequency!, days: newDays } };
+    });
+  };
+
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!formData.name || isSubmitting) return;
@@ -308,9 +318,16 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
                 )}
 
                 <input type="text" value={formData.name} onChange={(e) => updateForm('name', e.target.value)} className="w-full bg-github-card border border-github-border rounded-lg h-10 px-4 text-github-text focus:outline-none focus:border-github-accent placeholder-github-muted" placeholder="예: 물 마시기" required />
-                <div className="flex justify-between items-center py-2 px-1">
+                <div className="flex justify-between items-center py-2 gap-1.5 w-full">
                   {COLORS.map(color => (
-                    <button key={color} type="button" onClick={() => updateForm('color', color)} className={`w-8 h-8 rounded-full flex-shrink-0 transition-all ${color} ${formData.color === color ? 'ring-2 ring-white ring-offset-2 ring-offset-github-bg scale-110' : 'opacity-70 hover:opacity-100'}`} />
+                    <button 
+                      key={color} 
+                      type="button" 
+                      onClick={() => updateForm('color', color)} 
+                      className={`flex-1 aspect-square max-w-8 rounded-full flex items-center justify-center transition-all ${color} ${formData.color === color ? 'ring-2 ring-white ring-inset opacity-100' : 'opacity-70 hover:opacity-100 border border-transparent'}`}
+                    >
+                      {formData.color === color && <Check className="w-2/3 h-2/3 text-white" strokeWidth={3} />}
+                    </button>
                   ))}
                 </div>
               </div>
@@ -335,6 +352,35 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
                        <button key={id} type="button" onClick={() => setFormData(prev => ({ ...prev, frequency: { type: id as any, days: [], value: 1 } }))} className={`flex-1 py-1.5 text-xs rounded border transition-colors ${formData.frequency?.type === id ? 'bg-github-text text-github-bg font-bold' : 'border-github-border text-github-muted'}`}>{id === 'daily' ? '매일' : id === 'specific_days' ? '특정 요일' : '주 n회'}</button>
                      ))}
                   </div>
+                  
+                  {formData.frequency?.type === 'specific_days' && (
+                    <div className="pt-2 border-t border-github-border mt-2">
+                      <p className="text-xs text-github-muted mb-2 text-center">실천할 요일을 선택하세요</p>
+                      <div className="flex justify-between gap-1">
+                        {DAYS.map((day, idx) => (
+                          <button 
+                            key={idx} 
+                            type="button" 
+                            onClick={() => toggleSpecificDay(idx)} 
+                            className={`w-8 h-8 rounded-full text-xs font-bold border transition-all ${formData.frequency?.days?.includes(idx) ? 'bg-github-accent border-github-accent text-white' : 'bg-github-bg border-github-border text-github-muted'}`}
+                          >
+                            {day}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.frequency?.type === 'weekly_count' && (
+                    <div className="pt-2 border-t border-github-border mt-2 flex flex-col items-center">
+                      <p className="text-xs text-github-muted mb-2">일주일에 몇 번 실천할까요?</p>
+                      <div className="flex items-center gap-4 bg-github-bg p-2 rounded-lg border border-github-border">
+                        <button type="button" onClick={() => setFormData(prev => ({...prev, frequency: {...prev.frequency!, value: Math.max(1, (prev.frequency?.value || 1) - 1)}}))} className="w-8 h-8 flex items-center justify-center rounded bg-github-btn hover:bg-github-btnHover text-github-text font-bold text-lg">-</button>
+                        <span className="text-base font-bold w-8 text-center">{formData.frequency?.value || 1}회</span>
+                        <button type="button" onClick={() => setFormData(prev => ({...prev, frequency: {...prev.frequency!, value: Math.min(7, (prev.frequency?.value || 1) + 1)}}))} className="w-8 h-8 flex items-center justify-center rounded bg-github-btn hover:bg-github-btnHover text-github-text font-bold text-lg">+</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </form>
@@ -447,7 +493,7 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
             <>
               {isEdit && (
                 <button type="button" onClick={() => setIsBatchLogOpen(true)} className="flex-1 px-6 py-2.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-sm flex items-center justify-center gap-2">
-                  <RotateCcw size={18} /> 일괄 추가/수정
+                  일괄 수정
                 </button>
               )}
               <button disabled={isSubmitting} form="habit-form" type="submit" className="flex-1 px-6 py-2.5 rounded-lg bg-github-success text-white font-bold hover:bg-github-successHover flex items-center justify-center transition-colors shadow-sm disabled:opacity-50">
