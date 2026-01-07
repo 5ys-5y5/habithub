@@ -124,11 +124,12 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
 
   const toggleSpecificDay = (dayIdx: number) => {
     setFormData(prev => {
-      const currentDays = prev.frequency?.days || [];
+      const currentFrequency = prev.frequency || { type: 'specific_days', days: [], value: 1 };
+      const currentDays = currentFrequency.days || [];
       const newDays = currentDays.includes(dayIdx)
         ? currentDays.filter(d => d !== dayIdx)
-        : [...currentDays, dayIdx].sort();
-      return { ...prev, frequency: { ...prev.frequency!, days: newDays } };
+        : [...currentDays, dayIdx].sort((a, b) => a - b);
+      return { ...prev, frequency: { ...currentFrequency, days: newDays } };
     });
   };
 
@@ -375,9 +376,15 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
                     <div className="pt-2 border-t border-github-border mt-2 flex flex-col items-center">
                       <p className="text-xs text-github-muted mb-2">일주일에 몇 번 실천할까요?</p>
                       <div className="flex items-center gap-4 bg-github-bg p-2 rounded-lg border border-github-border">
-                        <button type="button" onClick={() => setFormData(prev => ({...prev, frequency: {...prev.frequency!, value: Math.max(1, (prev.frequency?.value || 1) - 1)}}))} className="w-8 h-8 flex items-center justify-center rounded bg-github-btn hover:bg-github-btnHover text-github-text font-bold text-lg">-</button>
+                        <button type="button" onClick={() => setFormData(prev => {
+                          const currentFrequency = prev.frequency || { type: 'weekly_count', days: [], value: 1 };
+                          return {...prev, frequency: {...currentFrequency, value: Math.max(1, (currentFrequency.value || 1) - 1)}};
+                        })} className="w-8 h-8 flex items-center justify-center rounded bg-github-btn hover:bg-github-btnHover text-github-text font-bold text-lg">-</button>
                         <span className="text-base font-bold w-8 text-center">{formData.frequency?.value || 1}회</span>
-                        <button type="button" onClick={() => setFormData(prev => ({...prev, frequency: {...prev.frequency!, value: Math.min(7, (prev.frequency?.value || 1) + 1)}}))} className="w-8 h-8 flex items-center justify-center rounded bg-github-btn hover:bg-github-btnHover text-github-text font-bold text-lg">+</button>
+                        <button type="button" onClick={() => setFormData(prev => {
+                          const currentFrequency = prev.frequency || { type: 'weekly_count', days: [], value: 1 };
+                          return {...prev, frequency: {...currentFrequency, value: Math.min(7, (currentFrequency.value || 1) + 1)}};
+                        })} className="w-8 h-8 flex items-center justify-center rounded bg-github-btn hover:bg-github-btnHover text-github-text font-bold text-lg">+</button>
                       </div>
                     </div>
                   )}
@@ -493,7 +500,7 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
             <>
               {isEdit && (
                 <button type="button" onClick={() => setIsBatchLogOpen(true)} className="flex-1 px-6 py-2.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-sm flex items-center justify-center gap-2">
-                  일괄 수정
+                   일괄 수정
                 </button>
               )}
               <button disabled={isSubmitting} form="habit-form" type="submit" className="flex-1 px-6 py-2.5 rounded-lg bg-github-success text-white font-bold hover:bg-github-successHover flex items-center justify-center transition-colors shadow-sm disabled:opacity-50">
