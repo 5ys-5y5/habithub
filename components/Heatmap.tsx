@@ -15,7 +15,11 @@ const Heatmap: React.FC<HeatmapProps> = ({ myRecord, peerRecords = [], rangeDays
   const CELL_SIZE = 10;   // px
   const GAP = 3;          // px
   const HEADER_HEIGHT = 14; 
-  const HEADER_MB = 4;    
+  const HEADER_MB = 3;    // Changed to 3px as requested
+
+  // Calculate today's string for highlighting
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   
   const { weeks, weekLabels } = useMemo(() => {
     const logDates = Object.keys(myLogs).map(d => new Date(d).getTime());
@@ -111,7 +115,7 @@ const Heatmap: React.FC<HeatmapProps> = ({ myRecord, peerRecords = [], rangeDays
 
   return (
     <div className="flex">
-      <div className="flex flex-col flex-shrink-0" style={{ marginRight: GAP }}>
+      <div className="flex flex-col flex-shrink-0 pt-[2px]" style={{ marginRight: GAP }}>
         <div style={{ height: HEADER_HEIGHT, marginBottom: HEADER_MB }} />
         {DAYS_EN.map((day, i) => (
            <div key={i} className="text-[9px] text-github-muted font-mono flex items-center justify-end leading-none" style={{ height: CELL_SIZE, marginBottom: GAP }}>{day}</div>
@@ -119,7 +123,7 @@ const Heatmap: React.FC<HeatmapProps> = ({ myRecord, peerRecords = [], rangeDays
       </div>
 
       <div className="overflow-x-auto custom-scrollbar">
-         <div className="flex flex-col w-fit">
+         <div className="flex flex-col w-fit p-[2px]">
             <div className="flex" style={{ height: HEADER_HEIGHT, marginBottom: HEADER_MB }}>
                {weekLabels.map((label, i) => (
                   <div key={i} className="text-[10px] text-github-muted text-left overflow-visible whitespace-nowrap leading-none" style={{ width: CELL_SIZE, marginRight: GAP }}>{label.visible ? label.text : ''}</div>
@@ -128,9 +132,17 @@ const Heatmap: React.FC<HeatmapProps> = ({ myRecord, peerRecords = [], rangeDays
             <div className="flex">
                {weeks.map((week, wIndex) => (
                   <div key={wIndex} className="flex flex-col" style={{ marginRight: GAP }}>
-                     {week.map((day) => (
-                        <div key={day.date} className={`rounded-[2px] transition-all ${getCellClass(day.status, day.isVisible)}`} title={`${day.date}`} style={{ width: CELL_SIZE, height: CELL_SIZE, marginBottom: GAP }} />
-                     ))}
+                     {week.map((day) => {
+                        const isToday = day.date === todayStr;
+                        return (
+                          <div 
+                            key={day.date} 
+                            className={`rounded-[2px] transition-all ${getCellClass(day.status, day.isVisible)} ${isToday && day.isVisible ? 'ring-1 ring-blue-500 ring-offset-1 ring-offset-github-card z-10' : ''}`} 
+                            title={`${day.date}${isToday ? ' (Today)' : ''}`} 
+                            style={{ width: CELL_SIZE, height: CELL_SIZE, marginBottom: GAP }} 
+                          />
+                        );
+                     })}
                   </div>
                ))}
             </div>

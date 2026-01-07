@@ -268,7 +268,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, currentUser, isReadOnly = f
 
       <div className="flex-1 flex w-full overflow-hidden relative">
          <main className="flex-1 min-w-0 overflow-y-auto custom-scrollbar">
-          <div className="max-w-4xl mx-auto p-4 sm:p-8 flex flex-col gap-6 sm:gap-10 pb-32 sm:pb-80">
+          <div className="max-w-4xl mx-auto p-4 sm:p-8 flex flex-col gap-6 sm:gap-10 pb-32 sm:pb-30">
             
             {invitedHabits.length > 0 && !isReadOnly && (
               <section className="w-full bg-github-card border border-github-accent/40 rounded-lg p-5 shadow-lg shadow-github-accent/5 animate-in fade-in slide-in-from-top-4">
@@ -349,7 +349,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, currentUser, isReadOnly = f
               <div className="flex items-center justify-between mb-9 bg-github-card p-3 rounded-lg border border-github-border shadow-sm">
                 <button onClick={() => shiftDate(-1)} className="p-2 hover:bg-github-btnHover rounded-full transition-colors text-github-text"><ChevronLeft size={20} /></button>
                 <div onClick={triggerDatePicker} className={`text-center relative group p-2 rounded transition-colors flex-1 min-w-0 ${!isReadOnly && 'cursor-pointer hover:bg-github-btn/50 select-none'}`}>
-                  <h2 className="text-base sm:text-lg font-bold text-white whitespace-nowrap overflow-hidden text-ellipsis">오늘의 목표</h2>
+                  <h2 className="text-base sm:text-lg font-bold text-white whitespace-nowrap overflow-hidden text-ellipsis">목표</h2>
                   <div className={`text-xs sm:text-sm text-github-muted flex items-center justify-center gap-2 ${!isReadOnly && 'group-hover:text-github-accent'}`}>{displayDate}</div>
                 </div>
                 <button onClick={() => shiftDate(1)} className="p-2 hover:bg-github-btnHover rounded-full transition-colors text-github-text"><ChevronRight size={20} /></button>

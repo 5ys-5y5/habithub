@@ -249,7 +249,7 @@ const FriendPage: React.FC<FriendPageProps> = ({ user, onLogout, onNavigate, onV
 
               <section className="bg-github-card border border-github-border rounded-xl p-6 shadow-sm relative overflow-hidden">
                  <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2 relative z-10">
-                    <Trophy size={20} className="text-yellow-500"/> 금주의 랭킹
+                  금주의 랭킹
                  </h3>
                  <div className="space-y-3 relative z-10">
                     {loading && rankings.length === 0 ? (
@@ -297,8 +297,8 @@ const FriendPage: React.FC<FriendPageProps> = ({ user, onLogout, onNavigate, onV
                     {activeTab === 'list' && (
                        <div className="space-y-4">
                           <div className="flex items-center justify-between mb-4">
-                             <h3 className="font-bold flex items-center gap-2"><Users size={18}/> 친구 ({acceptedFriends.length}명)</h3>
-                             <span className="text-xs text-github-muted">친구를 클릭하면 대시보드를 구경할 수 있어요</span>
+                             <h3 className="font-bold flex items-center gap-2"><Users size={18}/> {acceptedFriends.length}명</h3>
+                             <span className="text-xs text-github-muted">친구 대시보드 보러가기</span>
                           </div>
                           {loading && acceptedFriends.length === 0 ? (
                              <div className="flex flex-col items-center justify-center py-20 text-github-muted">
