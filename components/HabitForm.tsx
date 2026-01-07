@@ -327,7 +327,7 @@ const HabitForm: React.FC<HabitFormProps> = ({ userEmail, onClose, onSave, initi
                       onClick={() => updateForm('color', color)} 
                       className={`flex-1 aspect-square max-w-8 rounded-full flex items-center justify-center transition-all ${color} ${formData.color === color ? 'ring-2 ring-white ring-inset opacity-100' : 'opacity-70 hover:opacity-100 border border-transparent'}`}
                     >
-                      {formData.color === color && <Check className="w-2/3 h-2/3 text-white" strokeWidth={3} />}
+                      
                     </button>
                   ))}
                 </div>

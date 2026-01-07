@@ -169,6 +169,61 @@ const Dashboard: React.FC<DashboardProps> = ({ user, currentUser, isReadOnly = f
     });
   };
 
+  const handleSaveHabit = async (habit: Habit, invitees: string[], logs?: { [date: string]: boolean }) => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      if (editingHabit) {
+        // Update existing habit
+        
+        // 1. Update MY record
+        await saveHabitLog(user.email, habit.id, habit, logs || {});
+        
+        // 2. Handle Invitees (Create or Update their records)
+        if (habit.mode === 'together') {
+           // Iterate through all invitees to ensure they have records
+           for (const inviteeEmail of invitees) {
+             const currentSharedData = sharedData.find(d => d.myRecord.habit_id === habit.id);
+             const existingPeer = currentSharedData?.peerRecords.find(p => p.email === inviteeEmail);
+             
+             if (!existingPeer) {
+                // New invitee -> Create record with 'invited' status and SAME ID
+                const inviteeHabit: Habit = {
+                   ...habit,
+                   userEmail: inviteeEmail,
+                   recordStatus: 'invited',
+                   members: [user.email, ...invitees]
+                };
+                await saveHabitLog(inviteeEmail, habit.id, inviteeHabit, {});
+             } else {
+                // Existing peer -> Update config but preserve status/logs
+                const updatedPeerHabit: Habit = {
+                   ...existingPeer.habit,
+                   ...habit,
+                   userEmail: inviteeEmail,
+                   recordStatus: existingPeer.habit.recordStatus,
+                   members: [user.email, ...invitees]
+                };
+                await saveHabitLog(inviteeEmail, habit.id, updatedPeerHabit, existingPeer.logs);
+             }
+           }
+        }
+      } else {
+        // Create new habit
+        await createHabit(user.email, habit, invitees, logs);
+      }
+      
+      await loadData(true);
+      setShowHabitForm(false);
+      setEditingHabit(undefined);
+    } catch (err) {
+      console.error(err);
+      alert("저장 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const activeSharedData = useMemo(() => sharedData.filter(d => d.myRecord.habit && (d.myRecord.habit.recordStatus === 'active' || !d.myRecord.habit.recordStatus)), [sharedData]);
   const invitedHabits = useMemo(() => sharedData.filter(d => d.myRecord.habit && d.myRecord.habit.recordStatus === 'invited'), [sharedData]);
   
@@ -415,61 +470,65 @@ const Dashboard: React.FC<DashboardProps> = ({ user, currentUser, isReadOnly = f
       )}
 
       {confirmModal?.isOpen && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
-           <div className="bg-github-card border border-github-border rounded-xl shadow-2xl p-6 w-full max-w-sm animate-in zoom-in-95">
-              <div className="flex items-center gap-3 text-red-400 mb-4"><AlertTriangle size={24} /><h3 className="font-bold text-lg">{confirmModal.title}</h3></div>
-              <p className="text-sm text-github-text mb-6">{confirmModal.message}</p>
-              <div className="flex gap-2">
-                 <button onClick={() => setConfirmModal(null)} className="flex-1 py-2 bg-github-btn border border-github-border rounded-lg text-sm font-bold text-github-text hover:bg-github-btnHover">취소</button>
-                 <button onClick={confirmModal.onConfirm} className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-bold shadow-lg hover:bg-red-700">확인</button>
-              </div>
-           </div>
-        </div>
-      )}
-
-      {isDatePickerOpen && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-github-card border border-github-border rounded-xl shadow-2xl p-6 w-full max-w-[320px] animate-in zoom-in-95">
-            <div className="flex items-center justify-between mb-4"><h3 className="font-bold text-github-text">날짜 선택</h3><button onClick={() => setIsDatePickerOpen(false)} className="text-github-muted hover:text-github-text"><X size={20}/></button></div>
-            <div className="flex items-center justify-between mb-4 bg-github-bg rounded-lg p-1 border border-github-border">
-              <button onClick={() => setPickerViewDate(new Date(pickerViewDate.getFullYear(), pickerViewDate.getMonth() - 1, 1))} className="p-1.5 hover:bg-github-btn rounded text-github-text"><ChevronLeft size={18}/></button>
-              <span className="text-sm font-bold text-white">{pickerViewDate.getFullYear()}년 {pickerViewDate.getMonth() + 1}월</span>
-              <button onClick={() => setPickerViewDate(new Date(pickerViewDate.getFullYear(), pickerViewDate.getMonth() + 1, 1))} className="p-1.5 hover:bg-github-btn rounded text-github-text"><ChevronRight size={18}/></button>
-            </div>
-            <div className="grid grid-cols-7 gap-1 text-center">
-              {['일','월','화','수','목','금','토'].map(d => <div key={d} className="text-[10px] font-bold text-github-muted pb-2 uppercase tracking-tighter">{d}</div>)}
-              {calendarDays.map((d, i) => {
-                const isSelected = selectedDate.getDate() === d.day && selectedDate.getMonth() === d.month && selectedDate.getFullYear() === d.year;
-                return (
-                  <button key={i} onClick={() => selectDate(d.year, d.month, d.day)} className={`aspect-square rounded text-xs font-medium flex items-center justify-center transition-all ${!d.isCurrent ? 'text-github-muted/30' : 'text-github-text hover:bg-github-btn'} ${isSelected ? 'bg-github-accent text-white font-bold scale-110 shadow-lg shadow-github-accent/20' : ''}`}>{d.day}</button>
-                );
-              })}
-            </div>
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-github-card border border-github-border rounded-xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+             <h3 className="text-lg font-bold text-github-text">{confirmModal.title}</h3>
+             <p className="text-sm text-github-muted">{confirmModal.message}</p>
+             <div className="flex gap-2 justify-end">
+                <button onClick={() => setConfirmModal(null)} className="px-4 py-2 rounded-lg text-sm font-bold text-github-text hover:bg-github-btn">취소</button>
+                <button onClick={confirmModal.onConfirm} className="px-4 py-2 rounded-lg text-sm font-bold bg-red-500 text-white hover:bg-red-600">확인</button>
+             </div>
           </div>
         </div>
       )}
 
-      {showHabitForm && user && !isReadOnly && (
+      {showHabitForm && user && (
         <HabitForm 
           userEmail={user.email} 
-          onClose={() => { setShowHabitForm(false); setEditingHabit(undefined); }} 
-          onSave={async (habit, invitees, logs) => {
-             setLoading(true);
-             try {
-               if (editingHabit) await saveHabitLog(user.email, habit.id, habit, logs || {});
-               else await createHabit(user.email, habit, invitees, logs || {});
-               await loadData(true);
-             } catch (e) { console.error(e); } finally { setLoading(false); setShowHabitForm(false); setEditingHabit(undefined); }
-          }}
           initialData={editingHabit} 
-          initialLogs={sharedData.find(d => d.myRecord.habit_id === editingHabit?.id)?.myRecord.logs}
+          initialLogs={editingHabit ? sharedData.find(d => d.myRecord.habit_id === editingHabit.id)?.myRecord.logs : undefined}
+          onClose={() => setShowHabitForm(false)} 
+          onSave={handleSaveHabit} 
         />
       )}
 
+      {isDatePickerOpen && (
+         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setIsDatePickerOpen(false)}>
+            <div className="bg-github-card border border-github-border rounded-xl p-4 shadow-2xl w-full max-w-xs" onClick={e => e.stopPropagation()}>
+               <div className="flex items-center justify-between mb-4">
+                  <span className="font-bold text-github-text">{pickerViewDate.getFullYear()}년 {pickerViewDate.getMonth() + 1}월</span>
+                  <div className="flex gap-1">
+                     <button onClick={() => setPickerViewDate(new Date(pickerViewDate.getFullYear(), pickerViewDate.getMonth() - 1, 1))} className="p-1 hover:bg-github-btn rounded"><ChevronLeft size={16}/></button>
+                     <button onClick={() => setPickerViewDate(new Date(pickerViewDate.getFullYear(), pickerViewDate.getMonth() + 1, 1))} className="p-1 hover:bg-github-btn rounded"><ChevronRight size={16}/></button>
+                  </div>
+               </div>
+               <div className="grid grid-cols-7 gap-1 text-center">
+                  {['일','월','화','수','목','금','토'].map(d => <div key={d} className="text-[10px] text-github-muted font-bold py-1">{d}</div>)}
+                  {calendarDays.map((d, i) => (
+                     <button 
+                        key={i} 
+                        onClick={() => selectDate(d.year, d.month, d.day)} 
+                        className={`aspect-square rounded flex items-center justify-center text-xs font-bold transition-all ${!d.isCurrent ? 'opacity-30' : ''} ${d.year === selectedDate.getFullYear() && d.month === selectedDate.getMonth() && d.day === selectedDate.getDate() ? 'bg-github-accent text-white' : 'hover:bg-github-btn text-github-text'}`}
+                     >
+                        {d.day}
+                     </button>
+                  ))}
+               </div>
+            </div>
+         </div>
+      )}
+
       {tutorialMessage && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center pointer-events-none p-4 pb-20 sm:pb-4">
-           <div className="bg-github-card border border-github-accent shadow-2xl rounded-xl p-5 max-w-sm w-full animate-in fade-in slide-in-from-bottom-4 pointer-events-auto flex gap-4 items-start ring-1 ring-github-accent/30"><div className="bg-github-accent/10 p-2 rounded-full text-github-accent"><Info size={24} /></div><div className="flex-1"><h3 className="font-bold text-lg mb-1 text-white">{tutorialMessage.title}</h3><p className="text-sm text-github-muted leading-relaxed">{tutorialMessage.desc}</p><div className="mt-4 flex justify-end"><button onClick={() => setTutorialMessage(null)} className="px-4 py-1.5 bg-github-accent text-white text-xs font-bold rounded-md hover:bg-github-accent/80 transition-colors">확인</button></div></div></div>
-        </div>
+         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-github-card border border-github-border rounded-xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+               <div className="flex items-center gap-3 text-github-accent">
+                  <Info size={24} />
+                  <h3 className="text-lg font-bold text-white">{tutorialMessage.title}</h3>
+               </div>
+               <p className="text-sm text-github-text leading-relaxed">{tutorialMessage.desc}</p>
+               <button onClick={() => setTutorialMessage(null)} className="w-full py-2.5 rounded-lg bg-github-btn text-white font-bold hover:bg-github-btnHover transition-colors">확인</button>
+            </div>
+         </div>
       )}
     </div>
   );

@@ -178,17 +178,17 @@ export const createHabit = async (creatorEmail: string, habit: Habit, invitees: 
 
   if (habit.mode === 'together' && invitees.length > 0) {
     for (const inviteeEmail of invitees) {
-      const inviteeHabitId = `h-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      // Use SAME habit ID as the creator
       const inviteeHabit: Habit = {
         ...habit,
-        id: inviteeHabitId,
+        id: myHabitId, 
         sharedId,
         userEmail: inviteeEmail.toLowerCase(),
         creatorEmail: creatorEmail.toLowerCase(),
         recordStatus: 'invited', 
         members: members
       };
-      await saveHabitLog(inviteeEmail, inviteeHabitId, inviteeHabit, {});
+      await saveHabitLog(inviteeEmail, myHabitId, inviteeHabit, {});
     }
   }
   // No need to invalidate again since saveHabitLog does it
@@ -216,7 +216,8 @@ export const deleteHabit = async (record: HabitRecord): Promise<ApiResponse<any>
 export const respondToInvite = async (record: HabitRecord, accept: boolean) => {
   invalidateCache();
   const newStatus = accept ? 'active' : 'rejected';
-  const actualHabitId = record.habit_id.startsWith('invited-') ? `h-${Date.now()}` : record.habit_id;
+  // Use the actual habit_id without prefix if it was 'invited-'
+  const actualHabitId = record.habit_id.startsWith('invited-') ? (record.habit.id || `h-${Date.now()}`) : record.habit_id;
   const updatedHabit = { ...record.habit, id: actualHabitId, recordStatus: newStatus as any };
   await saveHabitLog(record.email, actualHabitId, updatedHabit, record.logs);
   invalidateCache();
@@ -240,14 +241,6 @@ export const fetchFriends = async (userEmail: string): Promise<Friend[]> => {
      status: (row[2] || 'pending') as any,
      updatedAt: row[3]
   }));
-  
-  // Cache the filtered list for this user? No, cache all and filter locally?
-  // Since we don't have multi-user login simultaneously, caching the result of the API call is fine.
-  // The API returns ALL friendships in the system usually (based on GS logic), or filtered.
-  // Assuming the GAS returns all, we filter here.
-  
-  // Current implementation: filtering happens after fetch.
-  // We will cache the result for this user specifically to be safe.
   
   const myFriends = allFriends.filter((f: Friend) => f.requester === targetEmail || f.receiver === targetEmail);
   cachedFriends = myFriends;
